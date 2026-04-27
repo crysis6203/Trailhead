@@ -1,0 +1,28 @@
+# PHP
+*.log
+*.cache
+/vendor/
+composer.lock
+
+# Environment
+.env
+.env.local
+*.env
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Uploads / user data
+/public/uploads/
+/storage/
+
+# Node (if used for build tools)
+node_modules/
+npm-debug.log

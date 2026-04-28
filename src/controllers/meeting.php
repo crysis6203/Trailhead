@@ -23,7 +23,7 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS queue_state (
 
 $action = $_POST['action'] ?? '';
 
-// ── POST: save_run ──────────────────────────────────────────────────────────
+// ── POST: save_run
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_run') {
     header('Content-Type: application/json');
     $stmt = $pdo->prepare('INSERT INTO run_history (user_id, session_name, raw_notes, prompt, raw_results, summary) VALUES (?,?,?,?,?,?)');
@@ -39,11 +39,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_run') {
     exit;
 }
 
-// ── POST: save_queue ────────────────────────────────────────────────────────
+// ── POST: save_queue
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_queue') {
     header('Content-Type: application/json');
     $json = $_POST['queue_json'] ?? '[]';
-    // Basic validation — must be a JSON array
     $decoded = json_decode($json, true);
     if (!is_array($decoded)) {
         echo json_encode(['ok' => false, 'error' => 'invalid json']);
@@ -58,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_queue') {
     exit;
 }
 
-// ── POST: load_queue ────────────────────────────────────────────────────────
+// ── POST: load_queue
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'load_queue') {
     header('Content-Type: application/json');
     $stmt = $pdo->prepare('SELECT queue_json FROM queue_state WHERE user_id = ?');
@@ -68,7 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'load_queue') {
     exit;
 }
 
-// ── GET: render page ────────────────────────────────────────────────────────
+// ── GET: render page
 $history = $pdo->prepare('SELECT id, session_name, summary, created_at FROM run_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 20');
 $history->execute([$_SESSION['user_id']]);
 $history = $history->fetchAll();

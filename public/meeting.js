@@ -268,7 +268,6 @@ function doParse() {
 
 function doAddToQueue() {
   if (!parsedRows.length) { alert('Parse your notes first.'); return; }
-  // APPEND to existing queue
   queueRows = queueRows.concat(parsedRows);
   saveQueue();
   parsedRows = [];

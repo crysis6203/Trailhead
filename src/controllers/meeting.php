@@ -94,9 +94,6 @@ tr:last-child td{border-bottom:0;}
 .badge{display:inline-flex;align-items:center;padding:.15rem .5rem;border-radius:999px;font-size:.7rem;font-weight:700;white-space:nowrap;}
 .b-rank{background:var(--blue-soft);color:var(--blue);}
 .b-mb{background:var(--purple-soft);color:var(--purple);}
-.b-high{background:#d1fae5;color:#065f46;}
-.b-medium{background:#e0f2fe;color:#0369a1;}
-.b-low{background:var(--amber-soft);color:var(--amber);}
 .b-success{background:#d1fae5;color:#065f46;}
 .b-failed{background:var(--red-soft);color:var(--red);}
 .b-review{background:var(--amber-soft);color:var(--amber);}
@@ -183,7 +180,7 @@ Tyler tf1a tf1b sc1a"></textarea>
       <div class="status-bar" id="statusBar">Parsing&hellip;</div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Scout</th><th>Type</th><th>Item</th><th>Date</th><th>Name flag</th></tr></thead>
+          <thead><tr><th>Scout</th><th>Type</th><th>Item</th><th>Date</th></tr></thead>
           <tbody id="previewBody"></tbody>
         </table>
       </div>
@@ -196,7 +193,7 @@ Tyler tf1a tf1b sc1a"></textarea>
       <h2><span class="step">3</span> Queue <span id="queueCount" style="font-size:.8rem;font-weight:400;color:var(--gray)"></span></h2>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>#</th><th>Scout</th><th>Type</th><th>Item</th><th>Date</th><th>Flag</th><th></th></tr></thead>
+          <thead><tr><th>#</th><th>Scout</th><th>Type</th><th>Item</th><th>Date</th><th></th></tr></thead>
           <tbody id="queueBody"></tbody>
         </table>
       </div>

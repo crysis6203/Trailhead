@@ -16,13 +16,6 @@ const RANK = {
   star1:'Star 1', star2:'Star 2', life1:'Life 1', life2:'Life 2'
 };
 
-const COMMON = new Set([
-  'sam','dan','ben','max','tom','tim','jim','bob','joe','mike','chris','alex',
-  'jake','ryan','kyle','adam','matt','john','mark','luke','evan','noah','liam',
-  'owen','cole','drew','seth','zach','will','jack','tyler','james','brandon',
-  'cody','hunter','austin','logan','ethan','mason','carter'
-]);
-
 let parsedRows = [], queueRows = [], lastParsedResults = [], currentLogText = '';
 
 function todayStr() {
@@ -35,22 +28,10 @@ function todayStr() {
   return (n.getMonth()+1) + '/' + n.getDate() + '/' + n.getFullYear();
 }
 
-function nameConf(n) {
-  const w = n.trim().split(/\s+/);
-  if (w.length >= 2) return 'high';
-  return COMMON.has(w[0].toLowerCase()) ? 'low' : 'medium';
-}
-
 function typeBadge(t) {
   return t === 'mb'
     ? '<span class="badge b-mb">Merit Badge</span>'
     : '<span class="badge b-rank">Rank</span>';
-}
-
-function confBadge(c) {
-  if (c === 'high')   return '<span class="badge b-high">&#10003; Full name</span>';
-  if (c === 'medium') return '<span class="badge b-medium">Single &middot; OK</span>';
-  return '<span class="badge b-low">&#9888; Verify</span>';
 }
 
 function esc(s) {
@@ -78,8 +59,7 @@ function parseNotes(raw) {
       const name  = nlMB[1].trim();
       const badge = nlMB[2].trim();
       const reqs  = nlMB[3].split(/[,\s]+/).map(r => r.replace(/[^\w]/g, '')).filter(Boolean);
-      const conf  = nameConf(name);
-      return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment, conf }));
+      return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment }));
     }
 
     // Shorthand merit badge: "Sam mb:First Aid req3 req4"
@@ -88,12 +68,11 @@ function parseNotes(raw) {
       const name  = shMB[1].trim();
       const badge = shMB[2].trim();
       const reqs  = shMB[3].trim().split(/\s+/).filter(Boolean);
-      const conf  = nameConf(name);
       return reqs.map(req => ({
         name, type:'mb', badge,
         item: badge + ' \u2014 ' + req.replace(/req/i, 'Req '),
         req: req.replace(/req/i, '').trim(),
-        date, comment, conf
+        date, comment
       }));
     }
 
@@ -104,8 +83,7 @@ function parseNotes(raw) {
     if (nlRank) {
       const name = nlRank[1].trim();
       const rank = nlRank[2].replace(/\s+/g, ' ').trim();
-      const conf = nameConf(name);
-      return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment, conf }];
+      return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment }];
     }
 
     // Natural language rank requirement: "John earned Tenderfoot 1b"
@@ -115,14 +93,13 @@ function parseNotes(raw) {
     if (nlRankReq) {
       const name    = nlRankReq[1].trim();
       const rawItem = nlRankReq[2].replace(/\s+/g, ' ').trim();
-      const conf    = nameConf(name);
       const aliasKey = rawItem.toLowerCase()
         .replace(/\s+/g, '')
         .replace('secondclass', 'sc')
         .replace('firstclass', 'fc')
         .replace('tenderfoot', 'tf');
       const resolved = RANK[aliasKey] || rawItem;
-      return [{ name, type:'rank', badge:null, item: resolved, req:null, date, comment, conf }];
+      return [{ name, type:'rank', badge:null, item: resolved, req:null, date, comment }];
     }
 
     // Shorthand rank tokens: "Tyler tf1a tf1b sc1a"
@@ -134,13 +111,12 @@ function parseNotes(raw) {
     });
     const name = nameT.join(' ').trim();
     if (name && itemT.length) {
-      const conf = nameConf(name);
-      return itemT.map(item => ({ name, type:'rank', badge:null, item: RANK[item], req:null, date, comment, conf }));
+      return itemT.map(item => ({ name, type:'rank', badge:null, item: RANK[item], req:null, date, comment }));
     }
 
-    // Catch-all: couldn't parse — show the line as-is with a warning
+    // Catch-all: couldn't parse
     if (noDate.trim()) {
-      return [{ name: noDate.trim(), type:'rank', badge:null, item:'(could not parse)', req:null, date, comment, conf:'low', unparsed:true }];
+      return [{ name: noDate.trim(), type:'rank', badge:null, item:'(could not parse)', req:null, date, comment, unparsed:true }];
     }
     return [];
   });
@@ -150,7 +126,7 @@ function renderPreview() {
   const b = document.getElementById('previewBody');
   document.getElementById('previewCard').style.display = 'block';
   if (!parsedRows.length) {
-    b.innerHTML = '<tr><td colspan="5" class="empty">No items parsed. Check your note format.</td></tr>';
+    b.innerHTML = '<tr><td colspan="4" class="empty">No items parsed. Check your note format.</td></tr>';
     return;
   }
   b.innerHTML = parsedRows.map(r =>
@@ -159,7 +135,6 @@ function renderPreview() {
     + '<td>' + typeBadge(r.type) + '</td>'
     + '<td>' + esc(r.item) + '</td>'
     + '<td>' + esc(r.date) + '</td>'
-    + '<td>' + confBadge(r.conf) + '</td>'
     + '</tr>'
   ).join('');
 }
@@ -179,7 +154,6 @@ function renderQueue() {
     + '<td>' + typeBadge(r.type) + '</td>'
     + '<td>' + esc(r.item) + '</td>'
     + '<td>' + esc(r.date) + '</td>'
-    + '<td>' + confBadge(r.conf) + '</td>'
     + '<td><button class="btn btn-red btn-sm" onclick="removeFromQueue(' + i + ')">&#10005;</button></td>'
     + '</tr>'
   ).join('');
@@ -188,18 +162,16 @@ function renderQueue() {
 }
 
 function updateStatus() {
-  const total   = parsedRows.length;
-  const flagged = parsedRows.filter(r => r.conf === 'low').length;
-  const scouts  = new Set(parsedRows.map(r => r.name)).size;
-  const mb      = parsedRows.filter(r => r.type === 'mb').length;
-  const rank    = parsedRows.filter(r => r.type === 'rank').length;
-  const bar     = document.getElementById('statusBar');
+  const total  = parsedRows.length;
+  const scouts = new Set(parsedRows.map(r => r.name)).size;
+  const mb     = parsedRows.filter(r => r.type === 'mb').length;
+  const rank   = parsedRows.filter(r => r.type === 'rank').length;
+  const bar    = document.getElementById('statusBar');
   if (!total) { bar.textContent = 'Nothing parsed yet.'; return; }
   bar.innerHTML = '<span class="pill">' + total + ' items</span> &middot; '
     + scouts + ' scouts &middot; '
     + rank + ' rank &middot; '
-    + mb + ' MB'
-    + (flagged ? ' &middot; <span style="color:var(--amber);font-weight:700">&#9888; ' + flagged + ' name(s) need verification</span>' : '');
+    + mb + ' MB';
 }
 
 function removeFromQueue(i) {
@@ -210,10 +182,7 @@ function removeFromQueue(i) {
 function doParse() {
   try {
     const notes = document.getElementById('notes').value;
-    if (!notes.trim()) {
-      alert('Enter some notes first.');
-      return;
-    }
+    if (!notes.trim()) { alert('Enter some notes first.'); return; }
     parsedRows = parseNotes(notes);
     queueRows  = [];
     renderPreview();
@@ -251,13 +220,10 @@ function insertChip(txt) {
 }
 
 function buildAction(r, i) {
-  const idx    = i + 1;
-  const vNote  = r.conf === 'low'
-    ? '\n     \u26a0 Short name \u2014 if search returns multiple results, STOP this item and report Needs review: Multiple scouts matched.'
-    : '';
-  const arrow  = ' \u2192 ';
+  const idx   = i + 1;
+  const arrow = ' \u2192 ';
   if (r.type === 'mb') {
-    let s = '  ' + idx + '. Scout: ' + r.name + vNote
+    let s = '  ' + idx + '. Scout: ' + r.name
       + '\n     Type: Merit Badge requirement'
       + '\n     Badge: ' + r.badge
       + '\n     Requirement: ' + r.req
@@ -268,7 +234,7 @@ function buildAction(r, i) {
     if (r.comment) s += '\n     Comment: ' + r.comment;
     return s;
   }
-  let s = '  ' + idx + '. Scout: ' + r.name + vNote
+  let s = '  ' + idx + '. Scout: ' + r.name
     + '\n     Type: Rank requirement'
     + '\n     Item: ' + r.item
     + '\n     Date: ' + r.date

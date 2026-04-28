@@ -41,6 +41,16 @@ function esc(s) {
     .replace(/>/g, '&gt;');
 }
 
+function resolveRankItem(rankName, reqNum) {
+  const rawItem  = rankName + ' ' + reqNum;
+  const aliasKey = rawItem.toLowerCase()
+    .replace(/\s+/g, '')
+    .replace('secondclass', 'sc')
+    .replace('firstclass', 'fc')
+    .replace('tenderfoot', 'tf');
+  return RANK[aliasKey] || rawItem;
+}
+
 function parseNotes(raw) {
   const today = todayStr();
   return raw.trim().split('\n').filter(l => l.trim()).flatMap(line => {
@@ -86,23 +96,28 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment }];
     }
 
-    // Natural language rank requirement: "John earned Tenderfoot 1b" or "Alex completed scout rank 2b"
-    // (?:\s+rank)? allows the word "rank" to appear between the rank name and the requirement number
-    const nlRankReq = noDate.match(
-      /^(.+?)\s+(?:completed|passed|finished|earned|did|got)?\s*(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
+    // Natural language rank requirement WITH verb:
+    // "Alex completed scout rank 2b" / "John earned Tenderfoot 1b"
+    const nlRankReqVerb = noDate.match(
+      /^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
     );
-    if (nlRankReq) {
-      const name    = nlRankReq[1].trim();
-      const rankName = nlRankReq[2].replace(/\s+rank$/i, '').replace(/\s+/g, ' ').trim();
-      const reqNum   = nlRankReq[3].trim();
-      const rawItem  = rankName + ' ' + reqNum;
-      const aliasKey = rawItem.toLowerCase()
-        .replace(/\s+/g, '')
-        .replace('secondclass', 'sc')
-        .replace('firstclass', 'fc')
-        .replace('tenderfoot', 'tf');
-      const resolved = RANK[aliasKey] || rawItem;
-      return [{ name, type:'rank', badge:null, item: resolved, req:null, date, comment }];
+    if (nlRankReqVerb) {
+      const name     = nlRankReqVerb[1].trim();
+      const rankName = nlRankReqVerb[2].replace(/\s+rank$/i, '').replace(/\s+/g, ' ').trim();
+      const reqNum   = nlRankReqVerb[3].trim();
+      return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
+    }
+
+    // Natural language rank requirement WITHOUT verb (voice-friendly):
+    // "Alex scout rank 2b" / "Alex scout 2b" / "Alex Tenderfoot 1a"
+    const nlRankReqNoVerb = noDate.match(
+      /^(.+?)\s+((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
+    );
+    if (nlRankReqNoVerb) {
+      const name     = nlRankReqNoVerb[1].trim();
+      const rankName = nlRankReqNoVerb[2].replace(/\s+rank$/i, '').replace(/\s+/g, ' ').trim();
+      const reqNum   = nlRankReqNoVerb[3].trim();
+      return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
 
     // Shorthand rank tokens: "Tyler tf1a tf1b sc1a"

@@ -86,13 +86,16 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment }];
     }
 
-    // Natural language rank requirement: "John earned Tenderfoot 1b"
+    // Natural language rank requirement: "John earned Tenderfoot 1b" or "Alex completed scout rank 2b"
+    // (?:\s+rank)? allows the word "rank" to appear between the rank name and the requirement number
     const nlRankReq = noDate.match(
-      /^(.+?)\s+(?:completed|passed|finished|earned|did|got)?\s*(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)\s+[\da-z]+)$/i
+      /^(.+?)\s+(?:completed|passed|finished|earned|did|got)?\s*(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
     );
     if (nlRankReq) {
       const name    = nlRankReq[1].trim();
-      const rawItem = nlRankReq[2].replace(/\s+/g, ' ').trim();
+      const rankName = nlRankReq[2].replace(/\s+rank$/i, '').replace(/\s+/g, ' ').trim();
+      const reqNum   = nlRankReq[3].trim();
+      const rawItem  = rankName + ' ' + reqNum;
       const aliasKey = rawItem.toLowerCase()
         .replace(/\s+/g, '')
         .replace('secondclass', 'sc')

@@ -23,9 +23,6 @@ const MONTHS = {
   october:10, oct:10, november:11, nov:11, december:12, dec:12
 };
 
-/**
- * normalizeDictation(line)
- */
 function normalizeDictation(line) {
   const NUM_WORDS = {
     'zero':'0','one':'1','won':'1','two':'2','to':'2','too':'2',
@@ -38,9 +35,7 @@ function normalizeDictation(line) {
   };
   const numPattern  = Object.keys(NUM_WORDS).join('|');
   const letPattern  = Object.keys(LETTER_WORDS).join('|');
-  const spokenReqRe = new RegExp(
-    '\\b(' + numPattern + ')\\s+(' + letPattern + ')\\b', 'gi'
-  );
+  const spokenReqRe = new RegExp('\\b(' + numPattern + ')\\s+(' + letPattern + ')\\b', 'gi');
   let result = line.replace(spokenReqRe, (match, numWord, letWord) => {
     const digit  = NUM_WORDS[numWord.toLowerCase()];
     const letter = LETTER_WORDS[letWord.toLowerCase()];
@@ -52,9 +47,6 @@ function normalizeDictation(line) {
   return result;
 }
 
-/**
- * normalizeDate(str) → "M/D/YYYY" or null
- */
 function normalizeDate(str) {
   if (!str) return null;
   const s = str.trim();
@@ -69,11 +61,10 @@ function normalizeDate(str) {
   const words = clean.toLowerCase().split(/\s+/);
   let month = null, day = null, year = null;
   words.forEach(w => {
-    if (MONTHS[w]) {
-      month = MONTHS[w];
-    } else if (/^\d+$/.test(w)) {
+    if (MONTHS[w]) { month = MONTHS[w]; }
+    else if (/^\d+$/.test(w)) {
       const n = parseInt(w);
-      if (n >= 2000)           year = n;
+      if (n >= 2000) year = n;
       else if (!day && n >= 1 && n <= 31) day = n;
     }
   });
@@ -82,9 +73,6 @@ function normalizeDate(str) {
   return null;
 }
 
-/**
- * extractDate(line) → { date: "M/D/YYYY", cleaned: lineWithoutDate }
- */
 function extractDate(line) {
   const today = todayStr();
   const numericRe = /\b(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/;
@@ -96,24 +84,19 @@ function extractDate(line) {
   const spokenMDY = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(\d{4})\b/i;
   const m1 = line.match(spokenMDY);
   if (m1) {
-    const mo = MONTHS[m1[1].toLowerCase()];
-    const dy = parseInt(m1[2]);
-    const yr = parseInt(m1[3]);
+    const mo = MONTHS[m1[1].toLowerCase()]; const dy = parseInt(m1[2]); const yr = parseInt(m1[3]);
     if (mo && dy && yr) return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m1[0], '').trim() };
   }
   const spokenMD = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i;
   const m2 = line.match(spokenMD);
   if (m2) {
-    const mo = MONTHS[m2[1].toLowerCase()];
-    const dy = parseInt(m2[2]);
+    const mo = MONTHS[m2[1].toLowerCase()]; const dy = parseInt(m2[2]);
     if (mo && dy) return { date: mo + '/' + dy + '/' + new Date().getFullYear(), cleaned: line.replace(m2[0], '').trim() };
   }
   const spokenDMY = /\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)(?:\s+(\d{4}))?\b/i;
   const m3 = line.match(spokenDMY);
   if (m3) {
-    const dy = parseInt(m3[1]);
-    const mo = MONTHS[m3[2].toLowerCase()];
-    const yr = m3[3] ? parseInt(m3[3]) : new Date().getFullYear();
+    const dy = parseInt(m3[1]); const mo = MONTHS[m3[2].toLowerCase()]; const yr = m3[3] ? parseInt(m3[3]) : new Date().getFullYear();
     if (mo && dy) return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m3[0], '').trim() };
   }
   return { date: today, cleaned: line };
@@ -121,7 +104,6 @@ function extractDate(line) {
 
 let parsedRows = [], queueRows = [], lastParsedResults = [], currentLogText = '';
 
-/* ── Server-side queue persistence ── */
 function saveQueue() {
   const fd = new FormData();
   fd.append('action', 'save_queue');
@@ -190,19 +172,12 @@ function typeBadge(t) {
 }
 
 function esc(s) {
-  return String(s)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
 }
 
 function resolveRankItem(rankName, reqNum) {
   const rawItem  = rankName + ' ' + reqNum;
-  const aliasKey = rawItem.toLowerCase()
-    .replace(/\s+/g, '')
-    .replace('secondclass', 'sc')
-    .replace('firstclass', 'fc')
-    .replace('tenderfoot', 'tf');
+  const aliasKey = rawItem.toLowerCase().replace(/\s+/g,'').replace('secondclass','sc').replace('firstclass','fc').replace('tenderfoot','tf');
   return RANK[aliasKey] || rawItem;
 }
 
@@ -214,72 +189,39 @@ function parseNotes(raw) {
     let clean = line.replace(/comment:.+$/i, '').trim();
     const { date, cleaned: noDate } = extractDate(clean);
 
-    const nlMB = noDate.match(
-      /^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i
-    );
+    const nlMB = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
     if (nlMB) {
-      const name  = nlMB[1].trim();
-      const badge = nlMB[2].trim();
-      const reqs  = nlMB[3].split(/[,\s]+/).map(r => r.replace(/[^\w]/g, '')).filter(Boolean);
+      const name = nlMB[1].trim(); const badge = nlMB[2].trim();
+      const reqs = nlMB[3].split(/[,\s]+/).map(r => r.replace(/[^\w]/g,'')).filter(Boolean);
       return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment }));
     }
-
     const shMB = noDate.match(/^(.+?)\s+mb:(.+?)\s+((?:req[\d\w]+\s*)+)$/i);
     if (shMB) {
-      const name  = shMB[1].trim();
-      const badge = shMB[2].trim();
-      const reqs  = shMB[3].trim().split(/\s+/).filter(Boolean);
-      return reqs.map(req => ({
-        name, type:'mb', badge,
-        item: badge + ' \u2014 ' + req.replace(/req/i, 'Req '),
-        req: req.replace(/req/i, '').trim(),
-        date, comment
-      }));
+      const name = shMB[1].trim(); const badge = shMB[2].trim();
+      const reqs = shMB[3].trim().split(/\s+/).filter(Boolean);
+      return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 ' + req.replace(/req/i,'Req '), req: req.replace(/req/i,'').trim(), date, comment }));
     }
-
-    const nlRank = noDate.match(
-      /^(.+?)\s+(?:completed|passed|finished|earned|achieved|got|received)\s+(Scout|Tenderfoot|Second\s+Class|First\s+Class|Star|Life|Eagle)(?:\s+rank)?$/i
-    );
+    const nlRank = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|achieved|got|received)\s+(Scout|Tenderfoot|Second\s+Class|First\s+Class|Star|Life|Eagle)(?:\s+rank)?$/i);
     if (nlRank) {
-      const name = nlRank[1].trim();
-      const rank = nlRank[2].replace(/\s+/g, ' ').trim();
+      const name = nlRank[1].trim(); const rank = nlRank[2].replace(/\s+/g,' ').trim();
       return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment }];
     }
-
-    const nlRankReqVerb = noDate.match(
-      /^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
-    );
+    const nlRankReqVerb = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i);
     if (nlRankReqVerb) {
-      const name     = nlRankReqVerb[1].trim();
-      const rankName = nlRankReqVerb[2].replace(/\s+rank$/i, '').replace(/\s+/g, ' ').trim();
-      const reqNum   = nlRankReqVerb[3].trim();
+      const name = nlRankReqVerb[1].trim(); const rankName = nlRankReqVerb[2].replace(/\s+rank$/i,'').replace(/\s+/g,' ').trim(); const reqNum = nlRankReqVerb[3].trim();
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
-
-    const nlRankReqNoVerb = noDate.match(
-      /^(.+?)\s+((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
-    );
+    const nlRankReqNoVerb = noDate.match(/^(.+?)\s+((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i);
     if (nlRankReqNoVerb) {
-      const name     = nlRankReqNoVerb[1].trim();
-      const rankName = nlRankReqNoVerb[2].replace(/\s+rank$/i, '').replace(/\s+/g, ' ').trim();
-      const reqNum   = nlRankReqNoVerb[3].trim();
+      const name = nlRankReqNoVerb[1].trim(); const rankName = nlRankReqNoVerb[2].replace(/\s+rank$/i,'').replace(/\s+/g,' ').trim(); const reqNum = nlRankReqNoVerb[3].trim();
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
-
     const tokens = noDate.split(/\s+/).filter(Boolean);
     const nameT = [], itemT = [];
-    tokens.forEach(t => {
-      if (RANK[t.toLowerCase()]) itemT.push(t.toLowerCase());
-      else nameT.push(t);
-    });
+    tokens.forEach(t => { if (RANK[t.toLowerCase()]) itemT.push(t.toLowerCase()); else nameT.push(t); });
     const name = nameT.join(' ').trim();
-    if (name && itemT.length) {
-      return itemT.map(item => ({ name, type:'rank', badge:null, item: RANK[item], req:null, date, comment }));
-    }
-
-    if (noDate.trim()) {
-      return [{ name: noDate.trim(), type:'rank', badge:null, item:'(could not parse)', req:null, date, comment, unparsed:true }];
-    }
+    if (name && itemT.length) return itemT.map(item => ({ name, type:'rank', badge:null, item: RANK[item], req:null, date, comment }));
+    if (noDate.trim()) return [{ name: noDate.trim(), type:'rank', badge:null, item:'(could not parse)', req:null, date, comment, unparsed:true }];
     return [];
   });
 }
@@ -324,17 +266,15 @@ function renderQueue() {
 }
 
 function updateStatus() {
-  const total    = parsedRows.length;
-  const scouts   = new Set(parsedRows.map(r => r.name)).size;
-  const mb       = parsedRows.filter(r => r.type === 'mb').length;
-  const rank     = parsedRows.filter(r => r.type === 'rank').length;
+  const total = parsedRows.length;
+  const scouts = new Set(parsedRows.map(r => r.name)).size;
+  const mb = parsedRows.filter(r => r.type === 'mb').length;
+  const rank = parsedRows.filter(r => r.type === 'rank').length;
   const unparsed = parsedRows.filter(r => r.unparsed).length;
-  const bar      = document.getElementById('statusBar');
+  const bar = document.getElementById('statusBar');
   if (!total) { bar.textContent = 'Nothing parsed yet.'; return; }
   bar.innerHTML = '<span class="pill">' + total + ' items</span> &middot; '
-    + scouts + ' scouts &middot; '
-    + rank + ' rank &middot; '
-    + mb + ' MB'
+    + scouts + ' scouts &middot; ' + rank + ' rank &middot; ' + mb + ' MB'
     + (unparsed ? ' &middot; <span style="color:#b45309">' + unparsed + ' could not parse</span>' : '');
 }
 
@@ -352,10 +292,7 @@ function doParse() {
     renderPreview();
     updateStatus();
     document.getElementById('previewCard').scrollIntoView({ behavior:'smooth', block:'nearest' });
-  } catch(e) {
-    alert('Parse error: ' + e.message);
-    console.error(e);
-  }
+  } catch(e) { alert('Parse error: ' + e.message); console.error(e); }
 }
 
 function doAddToQueue() {
@@ -388,7 +325,7 @@ function insertChip(txt) {
 }
 
 function buildAction(r, i) {
-  const idx   = i + 1;
+  const idx = i + 1;
   const arrow = ' \u2192 ';
   if (r.type === 'mb') {
     let s = '  ' + idx + '. Scout: ' + r.name
@@ -415,19 +352,21 @@ function buildAction(r, i) {
 function buildPrompt(rows) {
   if (!rows.length) return '\u2190 Parse your notes and add items to the queue first.';
   const actions = rows.map((r, i) => buildAction(r, i)).join('\n\n');
+  const site = 'https://advancements.scouting.org';
+  const acct = 'chrispowell6203';
   return 'Use Scoutbook Plus to enter rank advancements and merit badge requirements.\n\n'
-    + 'ACCOUNT: chrispowell6203\n'
+    + 'ACCOUNT: ' + acct + '\n'
     + 'UNIT CONTEXT: Scouts BSA Troop 911 Boys \u2014 Position: Scoutmaster\n'
-    + 'SITE: https://advancements.scouting.org\n\n'
+    + 'SITE: ' + site + '\n\n'
     + 'LOGIN STEPS (do these first):\n'
-    + '- Navigate to https://advancements.scouting.org\n'
+    + '- Navigate to ' + site + '\n'
     + '- Wait for the page to fully load.\n'
     + '- LastPass will auto-fill username and password \u2014 confirm both fields are populated.\n'
     + '- Click the "I\'m not a robot" reCAPTCHA v2 checkbox and wait for the green checkmark.\n'
     + '- If an image challenge appears instead, STOP and notify me \u2014 I will complete it manually.\n'
     + '- Click the Login button and wait for the dashboard to load.\n'
     + '- Dismiss any startup popup.\n'
-    + '- Verify account is chrispowell6203 and context is Troop 911 Scoutmaster before proceeding.\n\n'
+    + '- Verify account is ' + acct + ' and context is Troop 911 Scoutmaster before proceeding.\n\n'
     + 'GLOBAL RULES:\n'
     + '- Use the search field to find each scout by name.\n'
     + '- Process all items independently; continue the full queue even if one item fails.\n'
@@ -461,20 +400,14 @@ function togglePrompt() {
   w.style.display = w.style.display === 'none' ? 'block' : 'none';
 }
 
-/**
- * doSend() — saves queue to server, then opens /computer in a new tab.
- * Comet can open that tab and the full prompt is right there, ready to read.
- */
 function doSend() {
   if (!queueRows.length) { alert('Add items to the queue first.'); return; }
   const btn = document.getElementById('sendBtn');
   btn.disabled = true;
   btn.textContent = '\u23f3 Saving\u2026';
-
   const fd = new FormData();
   fd.append('action', 'save_queue');
   fd.append('queue_json', JSON.stringify(queueRows));
-
   fetch(window.location.href, { method: 'POST', body: fd })
     .then(r => r.json())
     .then(() => {
@@ -486,7 +419,6 @@ function doSend() {
     .catch(() => {
       btn.disabled = false;
       btn.textContent = '\uD83D\uDDA5\uFE0F Send to Computer';
-      // Fallback: open /computer anyway (queue may already be saved from last render)
       window.open('/computer', '_blank');
     });
 }
@@ -507,17 +439,8 @@ function parseResults(raw) {
     if (/^SUCCESS$/i.test(t))      { section = 'SUCCESS';      return acc; }
     if (/^FAILED$/i.test(t))       { section = 'FAILED';       return acc; }
     if (/^NEEDS REVIEW$/i.test(t)) { section = 'NEEDS REVIEW'; return acc; }
-    const m = t.match(
-      /Scout:\s*(.+?)\s*\|\s*Item:\s*(.+?)\s*\|\s*Date:\s*(.+?)\s*\|\s*Result:\s*(Success|Failed|Needs review)(?:\s*\|\s*Reason:\s*(.+))?/i
-    );
-    if (m) acc.push({
-      name:   m[1].trim(),
-      item:   m[2].trim(),
-      date:   m[3].trim(),
-      result: m[4].trim(),
-      reason: (m[5] || '').trim(),
-      section
-    });
+    const m = t.match(/Scout:\s*(.+?)\s*\|\s*Item:\s*(.+?)\s*\|\s*Date:\s*(.+?)\s*\|\s*Result:\s*(Success|Failed|Needs review)(?:\s*\|\s*Reason:\s*(.+))?/i);
+    if (m) acc.push({ name: m[1].trim(), item: m[2].trim(), date: m[3].trim(), result: m[4].trim(), reason: (m[5] || '').trim(), section });
     return acc;
   }, []);
 }
@@ -544,15 +467,9 @@ function renderResultSummary(results) {
   if (results.length) {
     html += '<div class="tbl-wrap"><table><thead><tr><th>Scout</th><th>Item</th><th>Date</th><th>Result</th><th>Reason</th></tr></thead><tbody>';
     results.forEach(r => {
-      const cls = r.result.toLowerCase() === 'success' ? 'b-success'
-                : r.result.toLowerCase() === 'failed'  ? 'b-failed' : 'b-review';
-      html += '<tr>'
-        + '<td>' + esc(r.name)   + '</td>'
-        + '<td>' + esc(r.item)   + '</td>'
-        + '<td>' + esc(r.date)   + '</td>'
-        + '<td><span class="badge ' + cls + '">' + esc(r.result) + '</span></td>'
-        + '<td>' + esc(r.reason || '\u2014') + '</td>'
-        + '</tr>';
+      const cls = r.result.toLowerCase() === 'success' ? 'b-success' : r.result.toLowerCase() === 'failed' ? 'b-failed' : 'b-review';
+      html += '<tr><td>' + esc(r.name) + '</td><td>' + esc(r.item) + '</td><td>' + esc(r.date) + '</td>'
+        + '<td><span class="badge ' + cls + '">' + esc(r.result) + '</span></td><td>' + esc(r.reason || '\u2014') + '</td></tr>';
     });
     html += '</tbody></table></div>';
   }
@@ -576,7 +493,7 @@ function buildLogText(raw, results) {
 
 function doExportLog() {
   const a = document.createElement('a');
-  a.href     = 'data:text/plain;charset=utf-8,' + encodeURIComponent(currentLogText);
+  a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(currentLogText);
   a.download = 'trailhead-log-' + Date.now() + '.txt';
   a.click();
 }
@@ -596,7 +513,16 @@ function doSaveRun() {
   fetch(window.location.href, { method:'POST', body:fd })
     .then(r => r.json())
     .then(d => {
-      if (d.ok) { alert('Run saved!'); showTab('history', document.querySelectorAll('.tab')[2]); }
+      if (d.ok) {
+        // Auto-clear queue after saving
+        queueRows = [];
+        clearSavedQueue();
+        document.getElementById('queueCard').style.display = 'none';
+        document.getElementById('sendCard').style.display  = 'none';
+        document.getElementById('sessionName').value = '';
+        alert('Run saved! Queue cleared and ready for next session.');
+        showTab('history', document.querySelectorAll('.tab')[2]);
+      }
     })
     .catch(() => alert('Save failed \u2014 check connection.'));
 }
@@ -604,6 +530,8 @@ function doSaveRun() {
 function buildReviewPrompt(results) {
   const items = results.filter(r => r.result.toLowerCase() === 'needs review');
   if (!items.length) return '\u2190 No NEEDS REVIEW items found.';
+  const site = 'https://advancements.scouting.org';
+  const acct = 'chrispowell6203';
   const lines = items.map((r, i) =>
     '  ' + (i+1) + '. Scout: ' + r.name
     + '\n     Item: ' + r.item
@@ -612,9 +540,9 @@ function buildReviewPrompt(results) {
     + '\n     Instruction: Re-attempt after my clarification. If still unclear, report Needs review again.'
   ).join('\n\n');
   return 'Use Scoutbook Plus to resolve only items previously returned as NEEDS REVIEW.\n\n'
-    + 'ACCOUNT: chrispowell6203\n'
+    + 'ACCOUNT: ' + acct + '\n'
     + 'UNIT CONTEXT: Scouts BSA Troop 911 Boys \u2014 Position: Scoutmaster\n'
-    + 'SITE: https://advancements.scouting.org\n\n'
+    + 'SITE: ' + site + '\n\n'
     + 'LOGIN STEPS: Same as primary run \u2014 LastPass auto-fills, handle CAPTCHA manually if needed.\n\n'
     + 'GLOBAL RULES:\n'
     + '- Work ONLY the items listed below.\n'
@@ -667,13 +595,11 @@ function toggleMic() {
   if (!SR) { alert('Voice dictation not supported in this browser. Try Chrome or Safari.'); return; }
   if (isRecording) { recognition.stop(); return; }
   recognition = new SR();
-  recognition.continuous     = true;
-  recognition.interimResults = false;
-  recognition.lang           = 'en-US';
+  recognition.continuous = true; recognition.interimResults = false; recognition.lang = 'en-US';
   recognition.onresult = e => {
-    const t  = Array.from(e.results).slice(e.resultIndex).map(r => r[0].transcript).join(' ');
+    const t = Array.from(e.results).slice(e.resultIndex).map(r => r[0].transcript).join(' ');
     const ta = document.getElementById('notes');
-    const v  = ta.value;
+    const v = ta.value;
     ta.value = v + (v && !v.endsWith('\n') ? '\n' : '') + t.trim() + '\n';
   };
   recognition.onend  = () => { isRecording = false; document.getElementById('micBtn').classList.remove('recording'); document.getElementById('micBtn').textContent = '\uD83C\uDFA4 Dictate'; };

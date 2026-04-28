@@ -2,7 +2,6 @@
 // Meeting Mode — Trailhead
 if (!isset($_SESSION['user_id'])) { header('Location: /login'); exit; }
 
-// Ensure run_history table exists
 $pdo->exec("CREATE TABLE IF NOT EXISTS run_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -14,7 +13,6 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS run_history (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-// Ensure queue_state table exists
 $pdo->exec("CREATE TABLE IF NOT EXISTS queue_state (
     user_id INT NOT NULL PRIMARY KEY,
     queue_json MEDIUMTEXT NOT NULL,
@@ -23,7 +21,6 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS queue_state (
 
 $action = $_POST['action'] ?? '';
 
-// ── POST: save_run
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_run') {
     header('Content-Type: application/json');
     $stmt = $pdo->prepare('INSERT INTO run_history (user_id, session_name, raw_notes, prompt, raw_results, summary) VALUES (?,?,?,?,?,?)');
@@ -35,29 +32,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_run') {
         $_POST['raw_results'] ?? '',
         $_POST['summary'] ?? '',
     ]);
+    // Auto-clear the queue after saving
+    $pdo->prepare('INSERT INTO queue_state (user_id, queue_json) VALUES (?, ?) ON DUPLICATE KEY UPDATE queue_json = VALUES(queue_json), updated_at = CURRENT_TIMESTAMP')
+        ->execute([$_SESSION['user_id'], '[]']);
     echo json_encode(['ok' => true, 'id' => $pdo->lastInsertId()]);
     exit;
 }
 
-// ── POST: save_queue
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_queue') {
     header('Content-Type: application/json');
     $json = $_POST['queue_json'] ?? '[]';
     $decoded = json_decode($json, true);
-    if (!is_array($decoded)) {
-        echo json_encode(['ok' => false, 'error' => 'invalid json']);
-        exit;
-    }
-    $stmt = $pdo->prepare(
-        'INSERT INTO queue_state (user_id, queue_json) VALUES (?, ?)
-         ON DUPLICATE KEY UPDATE queue_json = VALUES(queue_json), updated_at = CURRENT_TIMESTAMP'
-    );
-    $stmt->execute([$_SESSION['user_id'], $json]);
+    if (!is_array($decoded)) { echo json_encode(['ok' => false, 'error' => 'invalid json']); exit; }
+    $pdo->prepare('INSERT INTO queue_state (user_id, queue_json) VALUES (?, ?) ON DUPLICATE KEY UPDATE queue_json = VALUES(queue_json), updated_at = CURRENT_TIMESTAMP')
+        ->execute([$_SESSION['user_id'], $json]);
     echo json_encode(['ok' => true]);
     exit;
 }
 
-// ── POST: load_queue
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'load_queue') {
     header('Content-Type: application/json');
     $stmt = $pdo->prepare('SELECT queue_json FROM queue_state WHERE user_id = ?');
@@ -67,7 +59,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'load_queue') {
     exit;
 }
 
-// ── GET: render page
 $history = $pdo->prepare('SELECT id, session_name, summary, created_at FROM run_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 20');
 $history->execute([$_SESSION['user_id']]);
 $history = $history->fetchAll();
@@ -170,7 +161,6 @@ tr:last-child td{border-bottom:0;}
   <strong>&#9978; Trailhead</strong>
   <div class="hdr-right">
     <a href="/">Dashboard</a>
-    <a href="/sessions">Sessions</a>
     <span style="font-size:.8rem;opacity:.75">&#128100; <?= htmlspecialchars($_SESSION['display_name'] ?? '') ?></span>
     <a href="/logout">Logout</a>
   </div>

@@ -24,117 +24,136 @@ const MONTHS = {
 };
 
 /**
- * normalizeDate(str) → "M/D/YYYY" or null
+ * normalizeDictation(line)
  *
- * Handles all speech-recognition date formats, e.g.:
- *   "April 25th 2026"  → "4/25/2026"
- *   "April 25 2026"    → "4/25/2026"
- *   "April 25th, 2026" → "4/25/2026"
- *   "the 25th of April 2026" → "4/25/2026"
- *   "25th April 2026"  → "4/25/2026"
- *   "4/25/2026"        → "4/25/2026"  (passthrough)
- *   "4-25-2026"        → "4/25/2026"
- *   "2026-04-25"       → "4/25/2026"  (ISO)
+ * Converts spoken/phonetic requirement codes into shorthand before parsing.
+ * Speech recognition outputs things like:
+ *   "to be"     -> "2b"     (phonetic for "2b")
+ *   "to see"    -> "2c"
+ *   "for a"     -> "4a"
+ *   "one a"     -> "1a"
+ *   "3 B"       -> "3b"
+ *   "won a"     -> "1a"
+ *   "tree see"  -> "3c"     (Irish/some accents)
+ *
+ * Strategy: replace spoken "number + letter" patterns with compact tokens.
+ * Only runs on words that look like req codes (digit + letter combos).
+ * Safe to run on the whole line — won’t corrupt scout names.
+ */
+function normalizeDictation(line) {
+  // Map spoken number words to digits
+  const NUM_WORDS = {
+    'zero':'0','one':'1','won':'1','two':'2','to':'2','too':'2',
+    'three':'3','tree':'3','four':'4','for':'4','fore':'4',
+    'five':'5','six':'6','seven':'7','eight':'8','ate':'8','nine':'9'
+  };
+
+  // Map spoken letter words to single letters (only letters used in req codes: a-f)
+  const LETTER_WORDS = {
+    'a':'a','b':'b','be':'b','bee':'b','c':'c','see':'c','sea':'c',
+    'd':'d','dee':'d','e':'e','f':'f','ef':'f'
+  };
+
+  // Step 1: Replace spoken "NUMBER LETTER" pairs like "one a", "to be", "four c"
+  // Pattern: (number_word) + space + (letter_word), both as whole words
+  const numPattern  = Object.keys(NUM_WORDS).join('|');
+  const letPattern  = Object.keys(LETTER_WORDS).join('|');
+  const spokenReqRe = new RegExp(
+    '\\b(' + numPattern + ')\\s+(' + letPattern + ')\\b', 'gi'
+  );
+
+  let result = line.replace(spokenReqRe, (match, numWord, letWord) => {
+    const digit  = NUM_WORDS[numWord.toLowerCase()];
+    const letter = LETTER_WORDS[letWord.toLowerCase()];
+    if (digit && letter) return digit + letter;
+    return match;
+  });
+
+  // Step 2: Collapse "DIGIT SPACE LETTER" -> "DIGITletter" e.g. "2 b" -> "2b", "3 A" -> "3a"
+  result = result.replace(/\b(\d)\s+([a-fA-F])\b/g, (m, d, l) => d + l.toLowerCase());
+
+  // Step 3: Uppercase letters after digits to lowercase ("2B" -> "2b") for RANK key lookup
+  result = result.replace(/\b(\d)([A-F])\b/g, (m, d, l) => d + l.toLowerCase());
+
+  return result;
+}
+
+/**
+ * normalizeDate(str) → "M/D/YYYY" or null
  */
 function normalizeDate(str) {
   if (!str) return null;
   const s = str.trim();
 
-  // Already M/D/YYYY or M/D/YY
   const slash = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
   if (slash) {
     const y = slash[3].length === 2 ? '20' + slash[3] : slash[3];
     return parseInt(slash[1]) + '/' + parseInt(slash[2]) + '/' + y;
   }
 
-  // ISO: YYYY-MM-DD
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) return parseInt(iso[2]) + '/' + parseInt(iso[3]) + '/' + iso[1];
 
-  // Strip ordinal suffixes: 1st → 1, 2nd → 2, 3rd → 3, 4th → 4 …
   const clean = s.replace(/(\d+)(?:st|nd|rd|th)/gi, '$1').replace(/,/g, '').trim();
   const words = clean.toLowerCase().split(/\s+/);
 
   let month = null, day = null, year = null;
-
-  words.forEach((w, i) => {
+  words.forEach(w => {
     if (MONTHS[w]) {
       month = MONTHS[w];
     } else if (/^\d+$/.test(w)) {
       const n = parseInt(w);
-      if (n >= 2000) {
-        year = n;
-      } else if (!day && n >= 1 && n <= 31) {
-        day = n;
-      }
-    } else if (w === 'the' || w === 'of') {
-      // filler words — skip
+      if (n >= 2000)           year = n;
+      else if (!day && n >= 1 && n <= 31) day = n;
     }
   });
 
-  // Handle "Month Day Year" or "Day Month Year"
   if (month && day && year) return month + '/' + day + '/' + year;
-
-  // Year defaults to current year if month + day found but no year
-  if (month && day) return month + '/' + day + '/' + new Date().getFullYear();
-
+  if (month && day)         return month + '/' + day + '/' + new Date().getFullYear();
   return null;
 }
 
 /**
  * extractDate(line) → { date: "M/D/YYYY", cleaned: lineWithoutDate }
- *
- * Searches a line for any of these patterns (in priority order):
- *   1. Numeric: 4/25/2026  4-25-2026  2026-04-25
- *   2. Spoken:  April 25th 2026 | April 25 2026 | 25th April 2026 | the 25th of April 2026
  */
 function extractDate(line) {
   const today = todayStr();
 
-  // 1. Numeric date anywhere in the line
+  // 1. Numeric
   const numericRe = /\b(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/;
   const nm = line.match(numericRe);
   if (nm) {
     const normalized = normalizeDate(nm[1]);
-    if (normalized) {
-      return { date: normalized, cleaned: line.replace(nm[0], '').trim() };
-    }
+    if (normalized) return { date: normalized, cleaned: line.replace(nm[0], '').trim() };
   }
 
-  // 2. Spoken: "Month Day[st/nd/rd/th] [,] Year"  e.g. "April 25th 2026"
+  // 2. Spoken: Month Day Year
   const spokenMDY = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(\d{4})\b/i;
   const m1 = line.match(spokenMDY);
   if (m1) {
     const mo = MONTHS[m1[1].toLowerCase()];
     const dy = parseInt(m1[2]);
     const yr = parseInt(m1[3]);
-    if (mo && dy && yr) {
-      return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m1[0], '').trim() };
-    }
+    if (mo && dy && yr) return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m1[0], '').trim() };
   }
 
-  // 3. Spoken: "Month Day[th]" (no year) — use default year
+  // 3. Spoken: Month Day (no year)
   const spokenMD = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i;
   const m2 = line.match(spokenMD);
   if (m2) {
     const mo = MONTHS[m2[1].toLowerCase()];
     const dy = parseInt(m2[2]);
-    if (mo && dy) {
-      const yr = new Date().getFullYear();
-      return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m2[0], '').trim() };
-    }
+    if (mo && dy) return { date: mo + '/' + dy + '/' + new Date().getFullYear(), cleaned: line.replace(m2[0], '').trim() };
   }
 
-  // 4. Spoken: "Day[th] of Month Year"  e.g. "25th of April 2026"
+  // 4. Spoken: Day of Month Year
   const spokenDMY = /\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)(?:\s+(\d{4}))?\b/i;
   const m3 = line.match(spokenDMY);
   if (m3) {
     const dy = parseInt(m3[1]);
     const mo = MONTHS[m3[2].toLowerCase()];
     const yr = m3[3] ? parseInt(m3[3]) : new Date().getFullYear();
-    if (mo && dy) {
-      return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m3[0], '').trim() };
-    }
+    if (mo && dy) return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m3[0], '').trim() };
   }
 
   return { date: today, cleaned: line };
@@ -147,8 +166,7 @@ function saveQueue() {
   const fd = new FormData();
   fd.append('action', 'save_queue');
   fd.append('queue_json', JSON.stringify(queueRows));
-  fetch(window.location.href, { method: 'POST', body: fd })
-    .catch(() => {});
+  fetch(window.location.href, { method: 'POST', body: fd }).catch(() => {});
   try { localStorage.setItem('trailhead_queue', JSON.stringify(queueRows)); } catch(e) {}
 }
 
@@ -230,6 +248,9 @@ function resolveRankItem(rankName, reqNum) {
 
 function parseNotes(raw) {
   return raw.trim().split('\n').filter(l => l.trim()).flatMap(line => {
+    // Normalize dictated/spoken text first (req codes, letter-number combos)
+    line = normalizeDictation(line);
+
     const cm = line.match(/comment:\s*(.+)$/i);
     const comment = cm ? cm[1].trim() : '';
     let clean = line.replace(/comment:.+$/i, '').trim();

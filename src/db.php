@@ -2,11 +2,11 @@
 // Trailhead Database Connection
 // Uses PDO with MySQL
 
-$host = getenv('DB_HOST') ?: 'localhost';
-$port = getenv('DB_PORT') ?: '3306';
-$name = getenv('DB_NAME') ?: 'trailhead';
-$user = getenv('DB_USER') ?: 'root';
-$pass = getenv('DB_PASS') ?: '';
+$host = $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: 'localhost';
+$port = $_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: '3306';
+$name = $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: 'trailhead';
+$user = $_ENV['DB_USER'] ?? getenv('DB_USER') ?: 'root';
+$pass = $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: '';
 
 try {
     $pdo = new PDO(

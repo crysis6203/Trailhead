@@ -8,9 +8,20 @@ define('APP_VERSION', '1.0.0');
 // Load environment config
 if (file_exists(APP_ROOT . '/.env')) {
     $lines = file(APP_ROOT . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
     foreach ($lines as $line) {
-        if (strpos(trim($line), '#') === 0) continue;
-        putenv($line);
+        $line = trim($line);
+
+        if ($line === '' || strpos($line, '#') === 0 || strpos($line, '=') === false) {
+            continue;
+        }
+
+        [$name, $value] = explode('=', $line, 2);
+        $name  = trim($name);
+        $value = trim($value);
+
+        $_ENV[$name]    = $value;
+        $_SERVER[$name] = $value;
     }
 }
 

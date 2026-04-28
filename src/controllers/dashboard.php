@@ -2,12 +2,12 @@
 // Dashboard controller
 if (!isset($_SESSION['user_id'])) { header('Location: /login'); exit; }
 
-// Queue count
-$qCount = 0;
+// Queue count (run_history based)
+$runCount = 0;
 try {
-    $q = $pdo->prepare('SELECT COUNT(*) FROM queue WHERE user_id = ?');
+    $q = $pdo->prepare('SELECT COUNT(*) FROM run_history WHERE user_id = ?');
     $q->execute([$_SESSION['user_id']]);
-    $qCount = (int)$q->fetchColumn();
+    $runCount = (int)$q->fetchColumn();
 } catch (Exception $e) {}
 
 // Recent run history (last 5)
@@ -68,7 +68,6 @@ header strong{font-size:1.1rem;}
   <strong>&#9978; Trailhead</strong>
   <div class="hdr-right">
     <a href="/sessions">Sessions</a>
-    <a href="/scouts">Scouts</a>
     <a href="/meeting">Meeting</a>
     <span style="font-size:.8rem;opacity:.75">&#128100; <?= htmlspecialchars($_SESSION['display_name'] ?? '') ?></span>
     <a href="/logout">Logout</a>
@@ -79,18 +78,15 @@ header strong{font-size:1.1rem;}
 
   <!-- KPIs -->
   <div class="kpi-row">
-    <div class="kpi"><div class="num"><?= $qCount ?></div><div class="lbl">In Queue</div></div>
-    <div class="kpi"><div class="num"><?= count($sessions) > 0 ? count($sessions) : '&mdash;' ?></div><div class="lbl">Recent Sessions</div></div>
-    <div class="kpi"><div class="num"><?= count($runs) > 0 ? count($runs) : '&mdash;' ?></div><div class="lbl">Recent Runs</div></div>
+    <div class="kpi"><div class="num"><?= count($sessions) ?: '&mdash;' ?></div><div class="lbl">Sessions</div></div>
+    <div class="kpi"><div class="num"><?= $runCount ?: '&mdash;' ?></div><div class="lbl">Runs Saved</div></div>
   </div>
 
   <!-- Quick links -->
   <div class="quick-links">
     <a class="ql primary" href="/meeting"><span class="icon">&#128203;</span> Meeting Mode</a>
     <a class="ql" href="/sessions"><span class="icon">&#128197;</span> Sessions</a>
-    <a class="ql" href="/scouts"><span class="icon">&#129351;</span> Scouts</a>
-    <a class="ql" href="/queue"><span class="icon">&#128229;</span> Queue</a>
-    <a class="ql" href="/run"><span class="icon">&#128640;</span> Run</a>
+    <a class="ql" href="/logout"><span class="icon">&#128274;</span> Logout</a>
   </div>
 
   <!-- Recent runs -->

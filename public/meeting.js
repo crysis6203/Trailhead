@@ -204,9 +204,7 @@ function doParse() {
     const notes = document.getElementById('notes').value;
     if (!notes.trim()) { alert('Enter some notes first.'); return; }
     parsedRows = parseNotes(notes);
-    queueRows  = [];
     renderPreview();
-    renderQueue();
     updateStatus();
     document.getElementById('previewCard').scrollIntoView({ behavior:'smooth', block:'nearest' });
   } catch(e) {
@@ -217,8 +215,13 @@ function doParse() {
 
 function doAddToQueue() {
   if (!parsedRows.length) { alert('Parse your notes first.'); return; }
-  // Include all rows — unparsed ones are highlighted so they can be removed manually
-  queueRows = [...parsedRows];
+  // APPEND to existing queue (do not replace)
+  queueRows = queueRows.concat(parsedRows);
+  // Clear notes and preview so user can enter the next batch
+  parsedRows = [];
+  document.getElementById('notes').value = '';
+  document.getElementById('previewCard').style.display = 'none';
+  document.getElementById('statusBar').textContent = 'Nothing parsed yet.';
   renderQueue();
   document.getElementById('queueCard').scrollIntoView({ behavior:'smooth', block:'nearest' });
 }

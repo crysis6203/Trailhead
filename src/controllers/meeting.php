@@ -246,8 +246,8 @@ Tyler tf1a tf1b sc1a"></textarea>
     <div class="card" id="sendCard" style="display:none">
       <h2><span class="step">4</span> Send to Computer</h2>
       <div class="note-box">&#9888;&#65039; LastPass will auto-fill credentials. If a CAPTCHA image challenge appears, complete it manually before continuing.</div>
-      <button class="btn btn-send" id="sendBtn" onclick="doSend()">&#128203; Copy Prompt for Computer</button>
-      <p class="instr-note">Copies the prompt to your clipboard &mdash; then paste it into Computer and open Scoutbook there.</p>
+      <button class="btn btn-send" id="sendBtn" onclick="doSend()">&#128421;&#65039; Send to Computer</button>
+      <p class="instr-note">Saves the queue and opens the Computer task page in a new tab &mdash; ready for Perplexity to read and execute.</p>
       <div class="btn-row">
         <button class="btn btn-ghost btn-sm" id="copyOnlyBtn" onclick="doCopyOnly()">&#128203; Copy prompt only</button>
         <button class="btn btn-ghost btn-sm" onclick="togglePrompt()">&#128065; View prompt</button>

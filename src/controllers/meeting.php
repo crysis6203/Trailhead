@@ -133,6 +133,8 @@ tr:last-child td{border-bottom:0;}
 .empty{text-align:center;padding:1.25rem;color:var(--gray);font-size:.88rem;}
 /* note box */
 .note-box{background:var(--amber-soft);border:1px solid #fcd34d;border-radius:8px;padding:.55rem .8rem;font-size:.8rem;color:#78350f;margin-bottom:.6rem;}
+/* instruction note */
+.instr-note{font-size:.78rem;color:var(--gray);margin-top:.4rem;text-align:center;}
 /* log */
 .log-pre{font-size:.75rem;white-space:pre-wrap;word-break:break-word;max-height:180px;overflow-y:auto;background:#f9fafb;padding:.7rem;border-radius:8px;border:1px solid var(--border);}
 @media(max-width:520px){
@@ -222,7 +224,8 @@ Tyler tf1a tf1b sc1a"></textarea>
     <div class="card" id="sendCard" style="display:none">
       <h2><span class="step">4</span> Send to Computer</h2>
       <div class="note-box">&#9888;&#65039; LastPass will auto-fill credentials. If a CAPTCHA image challenge appears, complete it manually before continuing.</div>
-      <button class="btn btn-send" id="sendBtn" onclick="doSend()">&#128640; Open Scoutbook + Copy Prompt</button>
+      <button class="btn btn-send" id="sendBtn" onclick="doSend()">&#128203; Copy Prompt for Computer</button>
+      <p class="instr-note">Copies the prompt to your clipboard &mdash; then paste it into Computer and open Scoutbook there.</p>
       <div class="btn-row">
         <button class="btn btn-ghost btn-sm" id="copyOnlyBtn" onclick="doCopyOnly()">&#128203; Copy prompt only</button>
         <button class="btn btn-ghost btn-sm" onclick="togglePrompt()">&#128065; View prompt</button>
@@ -255,9 +258,10 @@ Tyler tf1a tf1b sc1a"></textarea>
       <div id="reviewPromptWrap" style="display:none;margin-top:.6rem">
         <pre class="prompt-box" id="reviewPromptBox"></pre>
         <div class="btn-row">
-          <button class="btn btn-send" style="flex:1" onclick="doSendReview()">&#128640; Open Scoutbook + Copy Review Prompt</button>
+          <button class="btn btn-send" style="flex:1" onclick="doSendReview()">&#128203; Copy Review Prompt for Computer</button>
           <button class="btn btn-ghost btn-sm" onclick="doCopyReview()">&#128203; Copy only</button>
         </div>
+        <p class="instr-note">Copies the review prompt &mdash; paste it into Computer and open Scoutbook there.</p>
       </div>
     </div>
 
@@ -485,10 +489,9 @@ function doSend(){
   const p=document.getElementById('promptBox').textContent;
   if(p.startsWith('\u2190')){alert('Parse notes and add items to queue first.');return;}
   navigator.clipboard.writeText(p).then(()=>{
-    window.open('https://advancements.scouting.org','_blank');
     const btn=document.getElementById('sendBtn');
-    btn.textContent='\u2705 Prompt copied! Scoutbook opening\u2026';
-    setTimeout(()=>{btn.textContent='\uD83D\uDE80 Open Scoutbook + Copy Prompt';},3000);
+    btn.textContent='\u2705 Prompt copied! Paste into Computer.';
+    setTimeout(()=>{btn.textContent='\uD83D\uDCCB Copy Prompt for Computer';},3000);
   }).catch(()=>{
     document.getElementById('promptWrap').style.display='block';
     alert('Clipboard blocked \u2014 prompt shown below. Copy manually.');
@@ -602,10 +605,9 @@ function doSendReview(){
   const p=document.getElementById('reviewPromptBox').textContent;
   if(p.startsWith('\u2190')){alert('Parse results first.');return;}
   navigator.clipboard.writeText(p).then(()=>{
-    window.open('https://advancements.scouting.org','_blank');
     const btn=document.querySelector('#reviewSection .btn-send');
-    btn.textContent='\u2705 Copied! Scoutbook opening\u2026';
-    setTimeout(()=>{btn.textContent='\uD83D\uDE80 Open Scoutbook + Copy Review Prompt';},3000);
+    btn.textContent='\u2705 Copied! Paste into Computer.';
+    setTimeout(()=>{btn.textContent='\uD83D\uDCCB Copy Review Prompt for Computer';},3000);
   });
 }
 

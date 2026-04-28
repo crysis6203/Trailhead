@@ -16,38 +16,61 @@ const RANK = {
   star1:'Star 1', star2:'Star 2', life1:'Life 1', life2:'Life 2'
 };
 
-const QUEUE_KEY = 'trailhead_queue';
-
 let parsedRows = [], queueRows = [], lastParsedResults = [], currentLogText = '';
 
-/* ── localStorage helpers ── */
+/* ── Server-side queue persistence ── */
 function saveQueue() {
-  try {
-    localStorage.setItem(QUEUE_KEY, JSON.stringify(queueRows));
-  } catch(e) { /* storage unavailable — silent fail */ }
+  const fd = new FormData();
+  fd.append('action', 'save_queue');
+  fd.append('queue_json', JSON.stringify(queueRows));
+  fetch(window.location.href, { method: 'POST', body: fd })
+    .catch(() => { /* silent fail — queue still lives in memory */ });
+  // Also keep localStorage as a fast local fallback
+  try { localStorage.setItem('trailhead_queue', JSON.stringify(queueRows)); } catch(e) {}
 }
 
 function loadQueue() {
-  try {
-    const raw = localStorage.getItem(QUEUE_KEY);
-    if (!raw) return;
-    const saved = JSON.parse(raw);
-    if (Array.isArray(saved) && saved.length) {
-      queueRows = saved;
-      renderQueue();
-      // Show restore banner
-      const banner = document.getElementById('restoreBanner');
-      if (banner) {
-        banner.textContent = '\u21ba Queue restored (' + queueRows.length + ' items) from your last session.';
-        banner.style.display = 'block';
-        setTimeout(() => { banner.style.display = 'none'; }, 6000);
+  const fd = new FormData();
+  fd.append('action', 'load_queue');
+  fetch(window.location.href, { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(data => {
+      if (data.ok && Array.isArray(data.queue) && data.queue.length) {
+        queueRows = data.queue;
+        renderQueue();
+        showRestoreBanner(queueRows.length);
       }
-    }
-  } catch(e) { /* corrupt data — ignore */ }
+    })
+    .catch(() => {
+      // Server unreachable — fall back to localStorage
+      try {
+        const raw = localStorage.getItem('trailhead_queue');
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (Array.isArray(saved) && saved.length) {
+            queueRows = saved;
+            renderQueue();
+            showRestoreBanner(queueRows.length);
+          }
+        }
+      } catch(e) {}
+    });
+}
+
+function showRestoreBanner(count) {
+  const banner = document.getElementById('restoreBanner');
+  if (!banner) return;
+  banner.textContent = '\u21ba Queue restored (' + count + ' item' + (count === 1 ? '' : 's') + ') from your last session.';
+  banner.style.display = 'block';
+  setTimeout(() => { banner.style.display = 'none'; }, 6000);
 }
 
 function clearSavedQueue() {
-  try { localStorage.removeItem(QUEUE_KEY); } catch(e) {}
+  const fd = new FormData();
+  fd.append('action', 'save_queue');
+  fd.append('queue_json', '[]');
+  fetch(window.location.href, { method: 'POST', body: fd }).catch(() => {});
+  try { localStorage.removeItem('trailhead_queue'); } catch(e) {}
 }
 
 function todayStr() {
@@ -93,6 +116,7 @@ function parseNotes(raw) {
     const date = dm ? dm[1] : today;
     let noDate = clean.replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, '').trim();
 
+    // Natural language merit badge
     const nlMB = noDate.match(
       /^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i
     );
@@ -103,6 +127,7 @@ function parseNotes(raw) {
       return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment }));
     }
 
+    // Shorthand merit badge
     const shMB = noDate.match(/^(.+?)\s+mb:(.+?)\s+((?:req[\d\w]+\s*)+)$/i);
     if (shMB) {
       const name  = shMB[1].trim();
@@ -116,6 +141,7 @@ function parseNotes(raw) {
       }));
     }
 
+    // Natural language full rank
     const nlRank = noDate.match(
       /^(.+?)\s+(?:completed|passed|finished|earned|achieved|got|received)\s+(Scout|Tenderfoot|Second\s+Class|First\s+Class|Star|Life|Eagle)(?:\s+rank)?$/i
     );
@@ -125,6 +151,7 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment }];
     }
 
+    // Natural language rank req WITH verb
     const nlRankReqVerb = noDate.match(
       /^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
     );
@@ -135,6 +162,7 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
 
+    // Natural language rank req WITHOUT verb
     const nlRankReqNoVerb = noDate.match(
       /^(.+?)\s+((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
     );
@@ -145,6 +173,7 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
 
+    // Shorthand rank tokens
     const tokens = noDate.split(/\s+/).filter(Boolean);
     const nameT = [], itemT = [];
     tokens.forEach(t => {
@@ -239,6 +268,7 @@ function doParse() {
 
 function doAddToQueue() {
   if (!parsedRows.length) { alert('Parse your notes first.'); return; }
+  // APPEND to existing queue
   queueRows = queueRows.concat(parsedRows);
   saveQueue();
   parsedRows = [];

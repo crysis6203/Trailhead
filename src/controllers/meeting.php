@@ -2,6 +2,7 @@
 // Meeting Mode — Trailhead
 if (!isset($_SESSION['user_id'])) { header('Location: /login'); exit; }
 
+// Ensure run_history table exists
 $pdo->exec("CREATE TABLE IF NOT EXISTS run_history (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -13,7 +14,17 @@ $pdo->exec("CREATE TABLE IF NOT EXISTS run_history (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_run') {
+// Ensure queue_state table exists
+$pdo->exec("CREATE TABLE IF NOT EXISTS queue_state (
+    user_id INT NOT NULL PRIMARY KEY,
+    queue_json MEDIUMTEXT NOT NULL,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;");
+
+$action = $_POST['action'] ?? '';
+
+// ── POST: save_run ──────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_run') {
     header('Content-Type: application/json');
     $stmt = $pdo->prepare('INSERT INTO run_history (user_id, session_name, raw_notes, prompt, raw_results, summary) VALUES (?,?,?,?,?,?)');
     $stmt->execute([
@@ -28,6 +39,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'save_
     exit;
 }
 
+// ── POST: save_queue ────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_queue') {
+    header('Content-Type: application/json');
+    $json = $_POST['queue_json'] ?? '[]';
+    // Basic validation — must be a JSON array
+    $decoded = json_decode($json, true);
+    if (!is_array($decoded)) {
+        echo json_encode(['ok' => false, 'error' => 'invalid json']);
+        exit;
+    }
+    $stmt = $pdo->prepare(
+        'INSERT INTO queue_state (user_id, queue_json) VALUES (?, ?)
+         ON DUPLICATE KEY UPDATE queue_json = VALUES(queue_json), updated_at = CURRENT_TIMESTAMP'
+    );
+    $stmt->execute([$_SESSION['user_id'], $json]);
+    echo json_encode(['ok' => true]);
+    exit;
+}
+
+// ── POST: load_queue ────────────────────────────────────────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'load_queue') {
+    header('Content-Type: application/json');
+    $stmt = $pdo->prepare('SELECT queue_json FROM queue_state WHERE user_id = ?');
+    $stmt->execute([$_SESSION['user_id']]);
+    $row = $stmt->fetch();
+    echo json_encode(['ok' => true, 'queue' => $row ? json_decode($row['queue_json'], true) : []]);
+    exit;
+}
+
+// ── GET: render page ────────────────────────────────────────────────────────
 $history = $pdo->prepare('SELECT id, session_name, summary, created_at FROM run_history WHERE user_id = ? ORDER BY created_at DESC LIMIT 20');
 $history->execute([$_SESSION['user_id']]);
 $history = $history->fetchAll();
@@ -117,6 +158,7 @@ tr:last-child td{border-bottom:0;}
 .note-box{background:var(--amber-soft);border:1px solid #fcd34d;border-radius:8px;padding:.55rem .8rem;font-size:.8rem;color:#78350f;margin-bottom:.6rem;}
 .instr-note{font-size:.78rem;color:var(--gray);margin-top:.4rem;text-align:center;}
 .log-pre{font-size:.75rem;white-space:pre-wrap;word-break:break-word;max-height:180px;overflow-y:auto;background:#f9fafb;padding:.7rem;border-radius:8px;border:1px solid var(--border);}
+.restore-banner{display:none;background:#d1fae5;border:1px solid #6ee7b7;border-radius:8px;padding:.55rem .8rem;font-size:.83rem;color:#065f46;margin-bottom:.6rem;}
 @media(max-width:520px){
   .meta-row{grid-template-columns:1fr;}
   .tabs .tab{font-size:.75rem;padding:.5rem .25rem;}
@@ -144,6 +186,9 @@ tr:last-child td{border-bottom:0;}
 
   <!-- TAB 1: MEETING -->
   <div id="tab-meeting" class="pane active">
+
+    <div class="restore-banner" id="restoreBanner"></div>
+
     <div class="card">
       <h2><span class="step">1</span> Capture Notes</h2>
       <div class="meta-row">

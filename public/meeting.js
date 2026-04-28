@@ -114,7 +114,7 @@ function parseNotes(raw) {
       return itemT.map(item => ({ name, type:'rank', badge:null, item: RANK[item], req:null, date, comment }));
     }
 
-    // Catch-all: couldn't parse
+    // Catch-all: mark as unparsed but still include so user can see/remove it
     if (noDate.trim()) {
       return [{ name: noDate.trim(), type:'rank', badge:null, item:'(could not parse)', req:null, date, comment, unparsed:true }];
     }
@@ -133,7 +133,7 @@ function renderPreview() {
     '<tr' + (r.unparsed ? ' style="background:#fff7ed"' : '') + '>'
     + '<td>' + esc(r.name) + '</td>'
     + '<td>' + typeBadge(r.type) + '</td>'
-    + '<td>' + esc(r.item) + '</td>'
+    + '<td>' + esc(r.item) + (r.unparsed ? ' <span style="color:#b45309;font-size:0.75rem">\u26a0\ufe0f could not parse</span>' : '') + '</td>'
     + '<td>' + esc(r.date) + '</td>'
     + '</tr>'
   ).join('');
@@ -148,11 +148,11 @@ function renderQueue() {
   document.getElementById('queueCard').style.display = 'block';
   document.getElementById('queueCount').textContent = '(' + queueRows.length + ' items)';
   b.innerHTML = queueRows.map((r, i) =>
-    '<tr>'
+    '<tr' + (r.unparsed ? ' style="background:#fff7ed"' : '') + '>'
     + '<td>' + (i+1) + '</td>'
     + '<td>' + esc(r.name) + '</td>'
     + '<td>' + typeBadge(r.type) + '</td>'
-    + '<td>' + esc(r.item) + '</td>'
+    + '<td>' + esc(r.item) + (r.unparsed ? ' <span style="color:#b45309;font-size:0.75rem">\u26a0\ufe0f</span>' : '') + '</td>'
     + '<td>' + esc(r.date) + '</td>'
     + '<td><button class="btn btn-red btn-sm" onclick="removeFromQueue(' + i + ')">&#10005;</button></td>'
     + '</tr>'
@@ -166,12 +166,14 @@ function updateStatus() {
   const scouts = new Set(parsedRows.map(r => r.name)).size;
   const mb     = parsedRows.filter(r => r.type === 'mb').length;
   const rank   = parsedRows.filter(r => r.type === 'rank').length;
+  const unparsed = parsedRows.filter(r => r.unparsed).length;
   const bar    = document.getElementById('statusBar');
   if (!total) { bar.textContent = 'Nothing parsed yet.'; return; }
   bar.innerHTML = '<span class="pill">' + total + ' items</span> &middot; '
     + scouts + ' scouts &middot; '
     + rank + ' rank &middot; '
-    + mb + ' MB';
+    + mb + ' MB'
+    + (unparsed ? ' &middot; <span style="color:#b45309">' + unparsed + ' could not parse</span>' : '');
 }
 
 function removeFromQueue(i) {
@@ -196,9 +198,9 @@ function doParse() {
 }
 
 function doAddToQueue() {
-  const valid = parsedRows.filter(r => !r.unparsed);
-  if (!valid.length) { alert('No valid parsed items to add.'); return; }
-  queueRows = [...valid];
+  if (!parsedRows.length) { alert('Parse your notes first.'); return; }
+  // Include all rows — unparsed ones are highlighted so they can be removed manually
+  queueRows = [...parsedRows];
   renderQueue();
   document.getElementById('queueCard').scrollIntoView({ behavior:'smooth', block:'nearest' });
 }

@@ -16,7 +16,39 @@ const RANK = {
   star1:'Star 1', star2:'Star 2', life1:'Life 1', life2:'Life 2'
 };
 
+const QUEUE_KEY = 'trailhead_queue';
+
 let parsedRows = [], queueRows = [], lastParsedResults = [], currentLogText = '';
+
+/* ── localStorage helpers ── */
+function saveQueue() {
+  try {
+    localStorage.setItem(QUEUE_KEY, JSON.stringify(queueRows));
+  } catch(e) { /* storage unavailable — silent fail */ }
+}
+
+function loadQueue() {
+  try {
+    const raw = localStorage.getItem(QUEUE_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (Array.isArray(saved) && saved.length) {
+      queueRows = saved;
+      renderQueue();
+      // Show restore banner
+      const banner = document.getElementById('restoreBanner');
+      if (banner) {
+        banner.textContent = '\u21ba Queue restored (' + queueRows.length + ' items) from your last session.';
+        banner.style.display = 'block';
+        setTimeout(() => { banner.style.display = 'none'; }, 6000);
+      }
+    }
+  } catch(e) { /* corrupt data — ignore */ }
+}
+
+function clearSavedQueue() {
+  try { localStorage.removeItem(QUEUE_KEY); } catch(e) {}
+}
 
 function todayStr() {
   const d = document.getElementById('defaultDate').value;
@@ -61,7 +93,6 @@ function parseNotes(raw) {
     const date = dm ? dm[1] : today;
     let noDate = clean.replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, '').trim();
 
-    // Natural language merit badge: "Sam completed First Aid merit badge requirement 3"
     const nlMB = noDate.match(
       /^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i
     );
@@ -72,7 +103,6 @@ function parseNotes(raw) {
       return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment }));
     }
 
-    // Shorthand merit badge: "Sam mb:First Aid req3 req4"
     const shMB = noDate.match(/^(.+?)\s+mb:(.+?)\s+((?:req[\d\w]+\s*)+)$/i);
     if (shMB) {
       const name  = shMB[1].trim();
@@ -86,7 +116,6 @@ function parseNotes(raw) {
       }));
     }
 
-    // Natural language full rank: "Tyler completed Eagle rank"
     const nlRank = noDate.match(
       /^(.+?)\s+(?:completed|passed|finished|earned|achieved|got|received)\s+(Scout|Tenderfoot|Second\s+Class|First\s+Class|Star|Life|Eagle)(?:\s+rank)?$/i
     );
@@ -96,8 +125,6 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment }];
     }
 
-    // Natural language rank requirement WITH verb:
-    // "Alex completed scout rank 2b" / "John earned Tenderfoot 1b"
     const nlRankReqVerb = noDate.match(
       /^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
     );
@@ -108,8 +135,6 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
 
-    // Natural language rank requirement WITHOUT verb (voice-friendly):
-    // "Alex scout rank 2b" / "Alex scout 2b" / "Alex Tenderfoot 1a"
     const nlRankReqNoVerb = noDate.match(
       /^(.+?)\s+((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
     );
@@ -120,7 +145,6 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
 
-    // Shorthand rank tokens: "Tyler tf1a tf1b sc1a"
     const tokens = noDate.split(/\s+/).filter(Boolean);
     const nameT = [], itemT = [];
     tokens.forEach(t => {
@@ -132,7 +156,6 @@ function parseNotes(raw) {
       return itemT.map(item => ({ name, type:'rank', badge:null, item: RANK[item], req:null, date, comment }));
     }
 
-    // Catch-all: mark as unparsed but still include so user can see/remove it
     if (noDate.trim()) {
       return [{ name: noDate.trim(), type:'rank', badge:null, item:'(could not parse)', req:null, date, comment, unparsed:true }];
     }
@@ -180,12 +203,12 @@ function renderQueue() {
 }
 
 function updateStatus() {
-  const total  = parsedRows.length;
-  const scouts = new Set(parsedRows.map(r => r.name)).size;
-  const mb     = parsedRows.filter(r => r.type === 'mb').length;
-  const rank   = parsedRows.filter(r => r.type === 'rank').length;
+  const total    = parsedRows.length;
+  const scouts   = new Set(parsedRows.map(r => r.name)).size;
+  const mb       = parsedRows.filter(r => r.type === 'mb').length;
+  const rank     = parsedRows.filter(r => r.type === 'rank').length;
   const unparsed = parsedRows.filter(r => r.unparsed).length;
-  const bar    = document.getElementById('statusBar');
+  const bar      = document.getElementById('statusBar');
   if (!total) { bar.textContent = 'Nothing parsed yet.'; return; }
   bar.innerHTML = '<span class="pill">' + total + ' items</span> &middot; '
     + scouts + ' scouts &middot; '
@@ -196,6 +219,7 @@ function updateStatus() {
 
 function removeFromQueue(i) {
   queueRows.splice(i, 1);
+  saveQueue();
   renderQueue();
 }
 
@@ -215,9 +239,8 @@ function doParse() {
 
 function doAddToQueue() {
   if (!parsedRows.length) { alert('Parse your notes first.'); return; }
-  // APPEND to existing queue (do not replace)
   queueRows = queueRows.concat(parsedRows);
-  // Clear notes and preview so user can enter the next batch
+  saveQueue();
   parsedRows = [];
   document.getElementById('notes').value = '';
   document.getElementById('previewCard').style.display = 'none';
@@ -229,6 +252,7 @@ function doAddToQueue() {
 function clearAll() {
   document.getElementById('notes').value = '';
   parsedRows = []; queueRows = [];
+  clearSavedQueue();
   document.getElementById('previewCard').style.display = 'none';
   document.getElementById('queueCard').style.display   = 'none';
   document.getElementById('sendCard').style.display    = 'none';
@@ -532,4 +556,5 @@ function showTab(name, btn) {
 document.addEventListener('DOMContentLoaded', function() {
   const d = new Date();
   document.getElementById('defaultDate').value = d.toISOString().split('T')[0];
+  loadQueue();
 });

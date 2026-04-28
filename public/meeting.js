@@ -25,56 +25,30 @@ const MONTHS = {
 
 /**
  * normalizeDictation(line)
- *
- * Converts spoken/phonetic requirement codes into shorthand before parsing.
- * Speech recognition outputs things like:
- *   "to be"     -> "2b"     (phonetic for "2b")
- *   "to see"    -> "2c"
- *   "for a"     -> "4a"
- *   "one a"     -> "1a"
- *   "3 B"       -> "3b"
- *   "won a"     -> "1a"
- *   "tree see"  -> "3c"     (Irish/some accents)
- *
- * Strategy: replace spoken "number + letter" patterns with compact tokens.
- * Only runs on words that look like req codes (digit + letter combos).
- * Safe to run on the whole line — won’t corrupt scout names.
  */
 function normalizeDictation(line) {
-  // Map spoken number words to digits
   const NUM_WORDS = {
     'zero':'0','one':'1','won':'1','two':'2','to':'2','too':'2',
     'three':'3','tree':'3','four':'4','for':'4','fore':'4',
     'five':'5','six':'6','seven':'7','eight':'8','ate':'8','nine':'9'
   };
-
-  // Map spoken letter words to single letters (only letters used in req codes: a-f)
   const LETTER_WORDS = {
     'a':'a','b':'b','be':'b','bee':'b','c':'c','see':'c','sea':'c',
     'd':'d','dee':'d','e':'e','f':'f','ef':'f'
   };
-
-  // Step 1: Replace spoken "NUMBER LETTER" pairs like "one a", "to be", "four c"
-  // Pattern: (number_word) + space + (letter_word), both as whole words
   const numPattern  = Object.keys(NUM_WORDS).join('|');
   const letPattern  = Object.keys(LETTER_WORDS).join('|');
   const spokenReqRe = new RegExp(
     '\\b(' + numPattern + ')\\s+(' + letPattern + ')\\b', 'gi'
   );
-
   let result = line.replace(spokenReqRe, (match, numWord, letWord) => {
     const digit  = NUM_WORDS[numWord.toLowerCase()];
     const letter = LETTER_WORDS[letWord.toLowerCase()];
     if (digit && letter) return digit + letter;
     return match;
   });
-
-  // Step 2: Collapse "DIGIT SPACE LETTER" -> "DIGITletter" e.g. "2 b" -> "2b", "3 A" -> "3a"
   result = result.replace(/\b(\d)\s+([a-fA-F])\b/g, (m, d, l) => d + l.toLowerCase());
-
-  // Step 3: Uppercase letters after digits to lowercase ("2B" -> "2b") for RANK key lookup
   result = result.replace(/\b(\d)([A-F])\b/g, (m, d, l) => d + l.toLowerCase());
-
   return result;
 }
 
@@ -84,19 +58,15 @@ function normalizeDictation(line) {
 function normalizeDate(str) {
   if (!str) return null;
   const s = str.trim();
-
   const slash = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
   if (slash) {
     const y = slash[3].length === 2 ? '20' + slash[3] : slash[3];
     return parseInt(slash[1]) + '/' + parseInt(slash[2]) + '/' + y;
   }
-
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (iso) return parseInt(iso[2]) + '/' + parseInt(iso[3]) + '/' + iso[1];
-
   const clean = s.replace(/(\d+)(?:st|nd|rd|th)/gi, '$1').replace(/,/g, '').trim();
   const words = clean.toLowerCase().split(/\s+/);
-
   let month = null, day = null, year = null;
   words.forEach(w => {
     if (MONTHS[w]) {
@@ -107,7 +77,6 @@ function normalizeDate(str) {
       else if (!day && n >= 1 && n <= 31) day = n;
     }
   });
-
   if (month && day && year) return month + '/' + day + '/' + year;
   if (month && day)         return month + '/' + day + '/' + new Date().getFullYear();
   return null;
@@ -118,16 +87,12 @@ function normalizeDate(str) {
  */
 function extractDate(line) {
   const today = todayStr();
-
-  // 1. Numeric
   const numericRe = /\b(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/;
   const nm = line.match(numericRe);
   if (nm) {
     const normalized = normalizeDate(nm[1]);
     if (normalized) return { date: normalized, cleaned: line.replace(nm[0], '').trim() };
   }
-
-  // 2. Spoken: Month Day Year
   const spokenMDY = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(\d{4})\b/i;
   const m1 = line.match(spokenMDY);
   if (m1) {
@@ -136,8 +101,6 @@ function extractDate(line) {
     const yr = parseInt(m1[3]);
     if (mo && dy && yr) return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m1[0], '').trim() };
   }
-
-  // 3. Spoken: Month Day (no year)
   const spokenMD = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i;
   const m2 = line.match(spokenMD);
   if (m2) {
@@ -145,8 +108,6 @@ function extractDate(line) {
     const dy = parseInt(m2[2]);
     if (mo && dy) return { date: mo + '/' + dy + '/' + new Date().getFullYear(), cleaned: line.replace(m2[0], '').trim() };
   }
-
-  // 4. Spoken: Day of Month Year
   const spokenDMY = /\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)(?:\s+(\d{4}))?\b/i;
   const m3 = line.match(spokenDMY);
   if (m3) {
@@ -155,7 +116,6 @@ function extractDate(line) {
     const yr = m3[3] ? parseInt(m3[3]) : new Date().getFullYear();
     if (mo && dy) return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m3[0], '').trim() };
   }
-
   return { date: today, cleaned: line };
 }
 
@@ -248,17 +208,12 @@ function resolveRankItem(rankName, reqNum) {
 
 function parseNotes(raw) {
   return raw.trim().split('\n').filter(l => l.trim()).flatMap(line => {
-    // Normalize dictated/spoken text first (req codes, letter-number combos)
     line = normalizeDictation(line);
-
     const cm = line.match(/comment:\s*(.+)$/i);
     const comment = cm ? cm[1].trim() : '';
     let clean = line.replace(/comment:.+$/i, '').trim();
-
-    // Extract date (handles numeric AND all spoken/dictated formats)
     const { date, cleaned: noDate } = extractDate(clean);
 
-    // Natural language merit badge
     const nlMB = noDate.match(
       /^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i
     );
@@ -269,7 +224,6 @@ function parseNotes(raw) {
       return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment }));
     }
 
-    // Shorthand merit badge
     const shMB = noDate.match(/^(.+?)\s+mb:(.+?)\s+((?:req[\d\w]+\s*)+)$/i);
     if (shMB) {
       const name  = shMB[1].trim();
@@ -283,7 +237,6 @@ function parseNotes(raw) {
       }));
     }
 
-    // Natural language full rank
     const nlRank = noDate.match(
       /^(.+?)\s+(?:completed|passed|finished|earned|achieved|got|received)\s+(Scout|Tenderfoot|Second\s+Class|First\s+Class|Star|Life|Eagle)(?:\s+rank)?$/i
     );
@@ -293,7 +246,6 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment }];
     }
 
-    // Natural language rank req WITH verb
     const nlRankReqVerb = noDate.match(
       /^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
     );
@@ -304,7 +256,6 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
 
-    // Natural language rank req WITHOUT verb
     const nlRankReqNoVerb = noDate.match(
       /^(.+?)\s+((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i
     );
@@ -315,7 +266,6 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
 
-    // Shorthand rank tokens
     const tokens = noDate.split(/\s+/).filter(Boolean);
     const nameT = [], itemT = [];
     tokens.forEach(t => {
@@ -366,7 +316,7 @@ function renderQueue() {
     + '<td>' + typeBadge(r.type) + '</td>'
     + '<td>' + esc(r.item) + (r.unparsed ? ' <span style="color:#b45309;font-size:0.75rem">\u26a0\ufe0f</span>' : '') + '</td>'
     + '<td>' + esc(r.date) + '</td>'
-    + '<td><button class="btn btn-red btn-sm" onclick="removeFromQueue(' + i + ')">&#10005;</button></td>'
+    + '<td><button class="btn btn-red btn-sm" onclick="removeFromQueue(' + i + ')">\u2715</button></td>'
     + '</tr>'
   ).join('');
   document.getElementById('sendCard').style.display = 'block';
@@ -511,17 +461,34 @@ function togglePrompt() {
   w.style.display = w.style.display === 'none' ? 'block' : 'none';
 }
 
+/**
+ * doSend() — saves queue to server, then opens /computer in a new tab.
+ * Comet can open that tab and the full prompt is right there, ready to read.
+ */
 function doSend() {
-  const p = document.getElementById('promptBox').textContent;
-  if (p.startsWith('\u2190')) { alert('Parse notes and add items to queue first.'); return; }
-  navigator.clipboard.writeText(p).then(() => {
-    const btn = document.getElementById('sendBtn');
-    btn.textContent = '\u2705 Prompt copied! Paste into Computer.';
-    setTimeout(() => { btn.textContent = '\uD83D\uDCCB Copy Prompt for Computer'; }, 3000);
-  }).catch(() => {
-    document.getElementById('promptWrap').style.display = 'block';
-    alert('Clipboard blocked \u2014 prompt shown below. Copy manually.');
-  });
+  if (!queueRows.length) { alert('Add items to the queue first.'); return; }
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  btn.textContent = '\u23f3 Saving\u2026';
+
+  const fd = new FormData();
+  fd.append('action', 'save_queue');
+  fd.append('queue_json', JSON.stringify(queueRows));
+
+  fetch(window.location.href, { method: 'POST', body: fd })
+    .then(r => r.json())
+    .then(() => {
+      btn.disabled = false;
+      btn.textContent = '\u2705 Saved! Opening Computer tab\u2026';
+      window.open('/computer', '_blank');
+      setTimeout(() => { btn.textContent = '\uD83D\uDDA5\uFE0F Send to Computer'; }, 3000);
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = '\uD83D\uDDA5\uFE0F Send to Computer';
+      // Fallback: open /computer anyway (queue may already be saved from last render)
+      window.open('/computer', '_blank');
+    });
 }
 
 function doCopyOnly() {

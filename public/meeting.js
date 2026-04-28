@@ -16,6 +16,130 @@ const RANK = {
   star1:'Star 1', star2:'Star 2', life1:'Life 1', life2:'Life 2'
 };
 
+const MONTHS = {
+  january:1, jan:1, february:2, feb:2, march:3, mar:3,
+  april:4, apr:4, may:5, june:6, jun:6,
+  july:7, jul:7, august:8, aug:8, september:9, sept:9, sep:9,
+  october:10, oct:10, november:11, nov:11, december:12, dec:12
+};
+
+/**
+ * normalizeDate(str) → "M/D/YYYY" or null
+ *
+ * Handles all speech-recognition date formats, e.g.:
+ *   "April 25th 2026"  → "4/25/2026"
+ *   "April 25 2026"    → "4/25/2026"
+ *   "April 25th, 2026" → "4/25/2026"
+ *   "the 25th of April 2026" → "4/25/2026"
+ *   "25th April 2026"  → "4/25/2026"
+ *   "4/25/2026"        → "4/25/2026"  (passthrough)
+ *   "4-25-2026"        → "4/25/2026"
+ *   "2026-04-25"       → "4/25/2026"  (ISO)
+ */
+function normalizeDate(str) {
+  if (!str) return null;
+  const s = str.trim();
+
+  // Already M/D/YYYY or M/D/YY
+  const slash = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if (slash) {
+    const y = slash[3].length === 2 ? '20' + slash[3] : slash[3];
+    return parseInt(slash[1]) + '/' + parseInt(slash[2]) + '/' + y;
+  }
+
+  // ISO: YYYY-MM-DD
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return parseInt(iso[2]) + '/' + parseInt(iso[3]) + '/' + iso[1];
+
+  // Strip ordinal suffixes: 1st → 1, 2nd → 2, 3rd → 3, 4th → 4 …
+  const clean = s.replace(/(\d+)(?:st|nd|rd|th)/gi, '$1').replace(/,/g, '').trim();
+  const words = clean.toLowerCase().split(/\s+/);
+
+  let month = null, day = null, year = null;
+
+  words.forEach((w, i) => {
+    if (MONTHS[w]) {
+      month = MONTHS[w];
+    } else if (/^\d+$/.test(w)) {
+      const n = parseInt(w);
+      if (n >= 2000) {
+        year = n;
+      } else if (!day && n >= 1 && n <= 31) {
+        day = n;
+      }
+    } else if (w === 'the' || w === 'of') {
+      // filler words — skip
+    }
+  });
+
+  // Handle "Month Day Year" or "Day Month Year"
+  if (month && day && year) return month + '/' + day + '/' + year;
+
+  // Year defaults to current year if month + day found but no year
+  if (month && day) return month + '/' + day + '/' + new Date().getFullYear();
+
+  return null;
+}
+
+/**
+ * extractDate(line) → { date: "M/D/YYYY", cleaned: lineWithoutDate }
+ *
+ * Searches a line for any of these patterns (in priority order):
+ *   1. Numeric: 4/25/2026  4-25-2026  2026-04-25
+ *   2. Spoken:  April 25th 2026 | April 25 2026 | 25th April 2026 | the 25th of April 2026
+ */
+function extractDate(line) {
+  const today = todayStr();
+
+  // 1. Numeric date anywhere in the line
+  const numericRe = /\b(\d{4}-\d{2}-\d{2}|\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/;
+  const nm = line.match(numericRe);
+  if (nm) {
+    const normalized = normalizeDate(nm[1]);
+    if (normalized) {
+      return { date: normalized, cleaned: line.replace(nm[0], '').trim() };
+    }
+  }
+
+  // 2. Spoken: "Month Day[st/nd/rd/th] [,] Year"  e.g. "April 25th 2026"
+  const spokenMDY = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?[,]?\s+(\d{4})\b/i;
+  const m1 = line.match(spokenMDY);
+  if (m1) {
+    const mo = MONTHS[m1[1].toLowerCase()];
+    const dy = parseInt(m1[2]);
+    const yr = parseInt(m1[3]);
+    if (mo && dy && yr) {
+      return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m1[0], '').trim() };
+    }
+  }
+
+  // 3. Spoken: "Month Day[th]" (no year) — use default year
+  const spokenMD = /\b(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)\s+(\d{1,2})(?:st|nd|rd|th)?\b/i;
+  const m2 = line.match(spokenMD);
+  if (m2) {
+    const mo = MONTHS[m2[1].toLowerCase()];
+    const dy = parseInt(m2[2]);
+    if (mo && dy) {
+      const yr = new Date().getFullYear();
+      return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m2[0], '').trim() };
+    }
+  }
+
+  // 4. Spoken: "Day[th] of Month Year"  e.g. "25th of April 2026"
+  const spokenDMY = /\b(\d{1,2})(?:st|nd|rd|th)?\s+(?:of\s+)?(january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec)(?:\s+(\d{4}))?\b/i;
+  const m3 = line.match(spokenDMY);
+  if (m3) {
+    const dy = parseInt(m3[1]);
+    const mo = MONTHS[m3[2].toLowerCase()];
+    const yr = m3[3] ? parseInt(m3[3]) : new Date().getFullYear();
+    if (mo && dy) {
+      return { date: mo + '/' + dy + '/' + yr, cleaned: line.replace(m3[0], '').trim() };
+    }
+  }
+
+  return { date: today, cleaned: line };
+}
+
 let parsedRows = [], queueRows = [], lastParsedResults = [], currentLogText = '';
 
 /* ── Server-side queue persistence ── */
@@ -24,8 +148,7 @@ function saveQueue() {
   fd.append('action', 'save_queue');
   fd.append('queue_json', JSON.stringify(queueRows));
   fetch(window.location.href, { method: 'POST', body: fd })
-    .catch(() => { /* silent fail — queue still lives in memory */ });
-  // Also keep localStorage as a fast local fallback
+    .catch(() => {});
   try { localStorage.setItem('trailhead_queue', JSON.stringify(queueRows)); } catch(e) {}
 }
 
@@ -42,7 +165,6 @@ function loadQueue() {
       }
     })
     .catch(() => {
-      // Server unreachable — fall back to localStorage
       try {
         const raw = localStorage.getItem('trailhead_queue');
         if (raw) {
@@ -107,14 +229,13 @@ function resolveRankItem(rankName, reqNum) {
 }
 
 function parseNotes(raw) {
-  const today = todayStr();
   return raw.trim().split('\n').filter(l => l.trim()).flatMap(line => {
     const cm = line.match(/comment:\s*(.+)$/i);
     const comment = cm ? cm[1].trim() : '';
     let clean = line.replace(/comment:.+$/i, '').trim();
-    const dm = clean.match(/\b(\d{1,2}\/\d{1,2}\/\d{4})\b/);
-    const date = dm ? dm[1] : today;
-    let noDate = clean.replace(/\b\d{1,2}\/\d{1,2}\/\d{4}\b/g, '').trim();
+
+    // Extract date (handles numeric AND all spoken/dictated formats)
+    const { date, cleaned: noDate } = extractDate(clean);
 
     // Natural language merit badge
     const nlMB = noDate.match(

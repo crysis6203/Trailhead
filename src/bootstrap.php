@@ -19,6 +19,7 @@ $routes = [
     '/scouts'     => 'controllers/scouts.php',
     '/queue'      => 'controllers/queue.php',
     '/run'        => 'controllers/run.php',
+    '/meeting'    => 'controllers/meeting.php',
 ];
 
 $controller = $routes[$uri] ?? null;

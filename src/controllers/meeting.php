@@ -380,7 +380,7 @@ Scout: Dan | Item: Tenderfoot 1b | Date: 4/28/2026 | Result: Needs review | Reas
               </div>
             </div>
             <div class="hist-run-time">
-              <?= date('M j, g:ia', strtotime($h['created_at'])) ?> CT
+              <?= date('M j, g:ia', strtotime($h['created_at'] . ' UTC')) ?> CT
               <?php if ($hasItems): ?>
                 <div style="text-align:right;font-size:.7rem;color:var(--green);margin-top:.2rem">▼ details</div>
               <?php endif; ?>
@@ -412,7 +412,7 @@ Scout: Dan | Item: Tenderfoot 1b | Date: 4/28/2026 | Result: Needs review | Reas
                   <div class="hi-note">&#9432; <?= htmlspecialchars($item['note']) ?></div>
                 <?php endif; ?>
               </div>
-              <div class="hi-date"><?= date('M j', strtotime($item['completion_date'])) ?></div>
+              <div class="hi-date"><?= date('M j', strtotime($item['completion_date'] . ' UTC')) ?></div>
             </div>
             <?php endforeach; ?>
           </div>

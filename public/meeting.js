@@ -189,19 +189,12 @@ function parseNotes(raw) {
     let clean = line.replace(/comment:.+$/i, '').trim();
     const { date, cleaned: noDate } = extractDate(clean);
 
-    // MB with verb: "Austin completed Camping merit badge requirement 4a"
-    const nlMB = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
+    // Merit badge — with or without verb, with or without "requirement" keyword
+    // Matches: "Austin Camping merit badge 4a" or "Austin completed Camping merit badge req 4a"
+    const nlMB = noDate.match(/^(.+?)\s+(?:(?:completed|passed|finished|earned|did|got)\s+)?(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
     if (nlMB) {
       const name = nlMB[1].trim(); const badge = nlMB[2].trim();
       const reqs = nlMB[3].split(/[,\s]+/).map(r => r.replace(/[^\w]/g,'')).filter(Boolean);
-      return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment }));
-    }
-
-    // MB without verb: "Austin Camping merit badge 4a" or "Austin Camping merit badge req 4a"
-    const nlMBNoVerb = noDate.match(/^(.+?)\s+(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
-    if (nlMBNoVerb) {
-      const name = nlMBNoVerb[1].trim(); const badge = nlMBNoVerb[2].trim();
-      const reqs = nlMBNoVerb[3].split(/[,\s]+/).map(r => r.replace(/[^\w]/g,'')).filter(Boolean);
       return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment }));
     }
 
@@ -213,19 +206,19 @@ function parseNotes(raw) {
       return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 ' + req.replace(/req/i,'Req '), req: req.replace(/req/i,'').trim(), date, comment }));
     }
 
-    const nlRank = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|achieved|got|received)\s+(Scout|Tenderfoot|Second\s+Class|First\s+Class|Star|Life|Eagle)(?:\s+rank)?$/i);
+    // Rank — full rank completion with or without verb
+    // Matches: "Austin completed Eagle" or "Austin Eagle rank"
+    const nlRank = noDate.match(/^(.+?)\s+(?:(?:completed|passed|finished|earned|achieved|got|received)\s+)?(Scout|Tenderfoot|Second\s+Class|First\s+Class|Star|Life|Eagle)(?:\s+rank)?$/i);
     if (nlRank) {
       const name = nlRank[1].trim(); const rank = nlRank[2].replace(/\s+/g,' ').trim();
       return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment }];
     }
-    const nlRankReqVerb = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i);
-    if (nlRankReqVerb) {
-      const name = nlRankReqVerb[1].trim(); const rankName = nlRankReqVerb[2].replace(/\s+rank$/i,'').replace(/\s+/g,' ').trim(); const reqNum = nlRankReqVerb[3].trim();
-      return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
-    }
-    const nlRankReqNoVerb = noDate.match(/^(.+?)\s+((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i);
-    if (nlRankReqNoVerb) {
-      const name = nlRankReqNoVerb[1].trim(); const rankName = nlRankReqNoVerb[2].replace(/\s+rank$/i,'').replace(/\s+/g,' ').trim(); const reqNum = nlRankReqNoVerb[3].trim();
+
+    // Rank requirement — with or without verb
+    // Matches: "Austin Tenderfoot 2a" or "Austin completed Tenderfoot 2a"
+    const nlRankReq = noDate.match(/^(.+?)\s+(?:(?:completed|passed|finished|earned|did|got)\s+)?(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life|Eagle)(?:\s+rank)?)\s+([\da-z]+)$/i);
+    if (nlRankReq) {
+      const name = nlRankReq[1].trim(); const rankName = nlRankReq[2].replace(/\s+rank$/i,'').replace(/\s+/g,' ').trim(); const reqNum = nlRankReq[3].trim();
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
     const tokens = noDate.split(/\s+/).filter(Boolean);

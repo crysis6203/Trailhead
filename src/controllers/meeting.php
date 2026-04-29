@@ -46,8 +46,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_queue') {
     $json = $_POST['queue_json'] ?? '[]';
     $decoded = json_decode($json, true);
     if (!is_array($decoded)) { echo json_encode(['ok' => false, 'error' => 'invalid json']); exit; }
-    $pdo->prepare('INSERT INTO queue_state (user_id, queue_json) VALUES (?, ?) ON DUPLICATE KEY UPDATE queue_json = VALUES(queue_json), updated_at = CURRENT_TIMESTAMP')
-        ->execute([$_SESSION['user_id'], $json]);
+    $sessionName = trim($_POST['session_name'] ?? '');
+    $pdo->prepare('INSERT INTO queue_state (user_id, queue_json, session_name) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE queue_json = VALUES(queue_json), session_name = VALUES(session_name), updated_at = CURRENT_TIMESTAMP')
+        ->execute([$_SESSION['user_id'], $json, $sessionName ?: null]);
     echo json_encode(['ok' => true]);
     exit;
 }

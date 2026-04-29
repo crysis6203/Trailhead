@@ -189,16 +189,18 @@ function parseNotes(raw) {
     let clean = line.replace(/comment:.+$/i, '').trim();
     const { date, cleaned: noDate } = extractDate(clean);
 
-    // Merit badge — with or without verb, "req/requirement" keyword optional
-    // Matches: "Austin Camping merit badge 4a" or "Austin completed Camping MB req 4a"
-    const nlMB = noDate.match(/^(.+?)\s+(?:(?:completed|passed|finished|earned|did|got)\s+)?(.+?)\s+(?:merit\s*badge|MB)\s+(?:req(?:uirement)?s?\s*)?([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
+    // Merit badge — "completed" keyword signals MB, works with voice dictation
+    // "Austin completed Camping merit badge 4a"
+    // "Austin D' completed First Aid merit badge 3"
+    // "John Smith completed Swimming MB req 2b"
+    const nlMB = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(.+?)\s+(?:merit\s*badge|MB)\s+(?:req(?:uirement)?s?\s*)?([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
     if (nlMB) {
       const name = nlMB[1].trim(); const badge = nlMB[2].trim();
       const reqs = nlMB[3].split(/[,\s]+/).map(r => r.replace(/[^\w]/g,'')).filter(Boolean);
       return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment }));
     }
 
-    // MB shorthand: "Austin mb:Camping req4a"
+        // MB shorthand: "Austin mb:Camping req4a"
     const shMB = noDate.match(/^(.+?)\s+mb:(.+?)\s+((?:req[\d\w]+\s*)+)$/i);
     if (shMB) {
       const name = shMB[1].trim(); const badge = shMB[2].trim();

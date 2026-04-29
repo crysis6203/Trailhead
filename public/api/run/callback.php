@@ -18,15 +18,24 @@ if (file_exists($envFile)) {
     }
 }
 
-// Self-contained DB connection
+// Self-contained DB connection — key names match your .env (DB_HOST, DB_NAME, DB_USER, DB_PASS)
 try {
-    $dsn  = 'mysql:host=' . ($_ENV['DB_HOST'] ?? 'localhost')
-          . ';dbname='    . ($_ENV['DB_DATABASE'] ?? '')
-          . ';charset=utf8mb4';
-    $pdo  = new PDO($dsn, $_ENV['DB_USERNAME'] ?? '', $_ENV['DB_PASSWORD'] ?? '', [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-    ]);
+    $host = $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: 'localhost';
+    $port = $_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: '3306';
+    $name = $_ENV['DB_NAME'] ?? getenv('DB_NAME') ?: '';
+    $user = $_ENV['DB_USER'] ?? getenv('DB_USER') ?: '';
+    $pass = $_ENV['DB_PASS'] ?? getenv('DB_PASS') ?: '';
+
+    $pdo = new PDO(
+        "mysql:host={$host};port={$port};dbname={$name};charset=utf8mb4",
+        $user,
+        $pass,
+        [
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES   => false,
+        ]
+    );
 } catch (PDOException $e) {
     http_response_code(500);
     die(json_encode(['error' => 'Database connection failed.']));

@@ -4,7 +4,7 @@ date_default_timezone_set('America/Chicago');
 
 if (!isset($_SESSION['user_id'])) { header('Location: /login'); exit; }
 
-$stmt = $pdo->prepare('SELECT queue_json FROM queue_state WHERE user_id = ?');
+$stmt = $pdo->prepare('SELECT queue_json, session_name FROM queue_state WHERE user_id = ?');
 $stmt->execute([$_SESSION['user_id']]);
 $row = $stmt->fetch();
 $queue = ($row && $row['queue_json']) ? json_decode($row['queue_json'], true) : [];
@@ -12,7 +12,10 @@ $queue = ($row && $row['queue_json']) ? json_decode($row['queue_json'], true) : 
 // ── NEW: Create a run_history record and get its ID ──────────────────────────
 $runId = null;
 if (!empty($queue)) {
-    $sessionName = date('Y-m-d g:i a') . ' — ' . ($_SESSION['display_name'] ?? 'Unknown');
+    // Use session name from queue if set, otherwise fall back to date/user
+    $sessionName = (!empty($row['session_name']))
+        ? trim($row['session_name'])
+        : date('Y-m-d g:i a') . ' — ' . ($_SESSION['display_name'] ?? 'Unknown');
     $ins = $pdo->prepare("
         INSERT INTO run_history (user_id, session_name, status)
         VALUES (?, ?, 'pending')

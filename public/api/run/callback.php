@@ -1,12 +1,38 @@
 <?php
-// Trailhead — Run Callback Endpoint
-// Receives structured results from Computer after a Scoutbook run
-// POST https://trailhead.mjtroop911.org/api/run/callback.php
+// Trailhead — Computer Callback Endpoint
+// Receives structured JSON results from Perplexity Computer after a Scoutbook run
+// Location: public/api/run/callback.php
+// Self-contained: loads its own .env and DB connection
+
+$appRoot = dirname(__DIR__, 3); // public/api/run -> public/api -> public -> app root
+
+// Load .env
+$envFile = $appRoot . '/.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        $line = trim($line);
+        if ($line === '' || strpos($line, '#') === 0 || strpos($line, '=') === false) continue;
+        [$name, $value] = explode('=', $line, 2);
+        $_ENV[trim($name)] = trim($value);
+    }
+}
+
+// Self-contained DB connection
+try {
+    $dsn  = 'mysql:host=' . ($_ENV['DB_HOST'] ?? 'localhost')
+          . ';dbname='    . ($_ENV['DB_DATABASE'] ?? '')
+          . ';charset=utf8mb4';
+    $pdo  = new PDO($dsn, $_ENV['DB_USERNAME'] ?? '', $_ENV['DB_PASSWORD'] ?? '', [
+        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
+        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+    ]);
+} catch (PDOException $e) {
+    http_response_code(500);
+    die(json_encode(['error' => 'Database connection failed.']));
+}
 
 header('Content-Type: application/json');
-
-// Bootstrap: load env and PDO
-require_once dirname(__DIR__, 3) . '/src/bootstrap.php';
 
 // Only accept POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -40,7 +66,7 @@ if ($runId <= 0 || empty($results) || !is_array($results)) {
 }
 
 // Confirm run_history record exists
-$stmt = $pdo->prepare('SELECT id FROM run_history WHERE id = ?');
+$stmt = $pdo->prepare("SELECT id FROM run_history WHERE id = ?");
 $stmt->execute([$runId]);
 if (!$stmt->fetch()) {
     http_response_code(404);
@@ -61,13 +87,13 @@ $insert = $pdo->prepare("
 ");
 
 foreach ($results as $item) {
-    $scout       = trim($item['scout']       ?? '');
-    $type        = trim($item['type']        ?? 'rank');
-    $itemName    = trim($item['item']        ?? '');
+    $scout       = trim($item['scout'] ?? '');
+    $type        = trim($item['type'] ?? 'rank');
+    $itemName    = trim($item['item'] ?? '');
     $requirement = trim($item['requirement'] ?? '');
-    $date        = trim($item['date']        ?? date('Y-m-d'));
-    $status      = trim($item['status']      ?? 'failed');
-    $note        = trim($item['note']        ?? '');
+    $date        = trim($item['date'] ?? date('Y-m-d'));
+    $status      = trim($item['status'] ?? 'failed');
+    $note        = trim($item['note'] ?? '');
 
     // Normalise type value
     if (!in_array($type, ['rank', 'merit_badge', 'award'])) {
@@ -103,9 +129,9 @@ foreach ($results as $item) {
     ]);
 
     // Tally counters
-    if ($status === 'entered')      $succeeded++;
-    elseif ($status === 'failed')   $failed++;
-    else                            $needsReview++;
+    if ($status === 'entered')          $succeeded++;
+    elseif ($status === 'failed')       $failed++;
+    else                                $needsReview++;
 }
 
 // Update run_history record with final counts and status

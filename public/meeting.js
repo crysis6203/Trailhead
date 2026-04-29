@@ -189,9 +189,9 @@ function parseNotes(raw) {
     let clean = line.replace(/comment:.+$/i, '').trim();
     const { date, cleaned: noDate } = extractDate(clean);
 
-    // Merit badge — with or without verb, with or without "requirement" keyword
-    // Matches: "Austin Camping merit badge 4a" or "Austin completed Camping merit badge req 4a"
-    const nlMB = noDate.match(/^(.+?)\s+(?:(?:completed|passed|finished|earned|did|got)\s+)?(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
+    // Merit badge — with or without verb, "req/requirement" keyword optional
+    // Matches: "Austin Camping merit badge 4a" or "Austin completed Camping MB req 4a"
+    const nlMB = noDate.match(/^(.+?)\s+(?:(?:completed|passed|finished|earned|did|got)\s+)?(.+?)\s+(?:merit\s*badge|MB)\s+(?:req(?:uirement)?s?\s*)?([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
     if (nlMB) {
       const name = nlMB[1].trim(); const badge = nlMB[2].trim();
       const reqs = nlMB[3].split(/[,\s]+/).map(r => r.replace(/[^\w]/g,'')).filter(Boolean);
@@ -214,9 +214,9 @@ function parseNotes(raw) {
       return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment }];
     }
 
-    // Rank requirement — with or without verb
-    // Matches: "Austin Tenderfoot 2a" or "Austin completed Tenderfoot 2a"
-    const nlRankReq = noDate.match(/^(.+?)\s+(?:(?:completed|passed|finished|earned|did|got)\s+)?(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life|Eagle)(?:\s+rank)?)\s+([\da-z]+)$/i);
+    // Rank requirement — with or without verb, handles "2a", "1", "7" etc
+    // Matches: "Austin Tenderfoot 2a", "Austin Eagle 1", "Austin completed First Class 7"
+    const nlRankReq = noDate.match(/^(.+?)\s+(?:(?:completed|passed|finished|earned|did|got)\s+)?(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life|Eagle)(?:\s+rank)?)\s+([\da-zA-Z]+(?:\s*[\da-zA-Z]+)*)$/i);
     if (nlRankReq) {
       const name = nlRankReq[1].trim(); const rankName = nlRankReq[2].replace(/\s+rank$/i,'').replace(/\s+/g,' ').trim(); const reqNum = nlRankReq[3].trim();
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];

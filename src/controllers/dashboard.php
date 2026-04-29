@@ -130,7 +130,7 @@ header strong{font-size:1.1rem;}
             <?php endif; ?>
           </div>
         </div>
-        <div class="hist-meta"><?= date('M j, g:ia', strtotime($run['created_at'])) ?> CT</div>
+        <div class="hist-meta"><?= date('M j, g:ia', strtotime($run['created_at'] . ' UTC')) ?> CT</div>
       </div>
       <?php endforeach; ?>
       <div style="margin-top:.6rem;font-size:.8rem;"><a href="/meeting" style="color:#0f766e">View all in Meeting Mode &rarr;</a></div>
@@ -146,7 +146,7 @@ header strong{font-size:1.1rem;}
       <?php foreach ($sessions as $sess): ?>
       <div class="hist-item">
         <div style="font-weight:600;font-size:.9rem"><?= htmlspecialchars($sess['name']) ?></div>
-        <div class="hist-meta"><?= date('M j, g:ia', strtotime($sess['created_at'])) ?> CT</div>
+        <div class="hist-meta"><?= date('M j, g:ia', strtotime($sess['created_at'] . ' UTC')) ?> CT</div>
       </div>
       <?php endforeach; ?>
       <div style="margin-top:.6rem;font-size:.8rem;"><a href="/sessions" style="color:#0f766e">View all sessions &rarr;</a></div>

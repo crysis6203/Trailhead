@@ -189,18 +189,23 @@ function parseNotes(raw) {
     let clean = line.replace(/comment:.+$/i, '').trim();
     const { date, cleaned: noDate } = extractDate(clean);
 
-    // Merit badge — "completed" keyword signals MB, works with voice dictation
-    // "Austin completed Camping merit badge 4a"
-    // "Austin D' completed First Aid merit badge 3"
-    // "John Smith completed Swimming MB req 2b"
-    const nlMB = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(.+?)\s+(?:merit\s*badge|MB)\s+(?:req(?:uirement)?s?\s*)?([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
+    // MB with verb: "Austin completed Camping merit badge requirement 4a"
+    const nlMB = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
     if (nlMB) {
       const name = nlMB[1].trim(); const badge = nlMB[2].trim();
       const reqs = nlMB[3].split(/[,\s]+/).map(r => r.replace(/[^\w]/g,'')).filter(Boolean);
       return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment }));
     }
 
-        // MB shorthand: "Austin mb:Camping req4a"
+    // MB without verb: "Austin Camping merit badge 4a" or "Austin Camping merit badge req 4a"
+    const nlMBNoVerb = noDate.match(/^(.+?)\s+(.+?)\s+(?:merit\s*badge|MB)\s+req(?:uirement)?s?\s*([\d\w]+(?:[,\s]+[\d\w]+)*)$/i);
+    if (nlMBNoVerb) {
+      const name = nlMBNoVerb[1].trim(); const badge = nlMBNoVerb[2].trim();
+      const reqs = nlMBNoVerb[3].split(/[,\s]+/).map(r => r.replace(/[^\w]/g,'')).filter(Boolean);
+      return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 Req ' + req, req, date, comment }));
+    }
+
+    // MB shorthand: "Austin mb:Camping req4a"
     const shMB = noDate.match(/^(.+?)\s+mb:(.+?)\s+((?:req[\d\w]+\s*)+)$/i);
     if (shMB) {
       const name = shMB[1].trim(); const badge = shMB[2].trim();
@@ -208,19 +213,19 @@ function parseNotes(raw) {
       return reqs.map(req => ({ name, type:'mb', badge, item: badge + ' \u2014 ' + req.replace(/req/i,'Req '), req: req.replace(/req/i,'').trim(), date, comment }));
     }
 
-    // Rank — full rank completion with or without verb
-    // Matches: "Austin completed Eagle" or "Austin Eagle rank"
-    const nlRank = noDate.match(/^(.+?)\s+(?:(?:completed|passed|finished|earned|achieved|got|received)\s+)?(Scout|Tenderfoot|Second\s+Class|First\s+Class|Star|Life|Eagle)(?:\s+rank)?$/i);
+    const nlRank = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|achieved|got|received)\s+(Scout|Tenderfoot|Second\s+Class|First\s+Class|Star|Life|Eagle)(?:\s+rank)?$/i);
     if (nlRank) {
       const name = nlRank[1].trim(); const rank = nlRank[2].replace(/\s+/g,' ').trim();
       return [{ name, type:'rank', badge:null, item: rank + ' (Full Rank)', req:null, date, comment }];
     }
-
-    // Rank requirement — with or without verb, handles "2a", "1", "7" etc
-    // Matches: "Austin Tenderfoot 2a", "Austin Eagle 1", "Austin completed First Class 7"
-    const nlRankReq = noDate.match(/^(.+?)\s+(?:(?:completed|passed|finished|earned|did|got)\s+)?(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life|Eagle)(?:\s+rank)?)\s+([\da-zA-Z]+(?:\s*[\da-zA-Z]+)*)$/i);
-    if (nlRankReq) {
-      const name = nlRankReq[1].trim(); const rankName = nlRankReq[2].replace(/\s+rank$/i,'').replace(/\s+/g,' ').trim(); const reqNum = nlRankReq[3].trim();
+    const nlRankReqVerb = noDate.match(/^(.+?)\s+(?:completed|passed|finished|earned|did|got)\s+(?:requirement\s+)?((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i);
+    if (nlRankReqVerb) {
+      const name = nlRankReqVerb[1].trim(); const rankName = nlRankReqVerb[2].replace(/\s+rank$/i,'').replace(/\s+/g,' ').trim(); const reqNum = nlRankReqVerb[3].trim();
+      return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
+    }
+    const nlRankReqNoVerb = noDate.match(/^(.+?)\s+((?:Tenderfoot|Second\s+Class|First\s+Class|Scout|Star|Life)(?:\s+rank)?)\s+([\da-z]+)$/i);
+    if (nlRankReqNoVerb) {
+      const name = nlRankReqNoVerb[1].trim(); const rankName = nlRankReqNoVerb[2].replace(/\s+rank$/i,'').replace(/\s+/g,' ').trim(); const reqNum = nlRankReqNoVerb[3].trim();
       return [{ name, type:'rank', badge:null, item: resolveRankItem(rankName, reqNum), req:null, date, comment }];
     }
     const tokens = noDate.split(/\s+/).filter(Boolean);
@@ -342,8 +347,7 @@ function buildAction(r, i) {
       + '\n     Date: ' + r.date
       + '\n     Navigation: Find scout' + arrow + 'scroll to Merit Badges' + arrow
       + 'View All' + arrow + 'search "' + r.badge + '"' + arrow
-      + 'open badge' + arrow + 'find Req ' + r.req + arrow
-      + 'check the box or click Approve' + arrow + 'set date to ' + r.date + arrow + 'save';
+      + 'open badge' + arrow + 'find Req ' + r.req + arrow + 'approve';
     if (r.comment) s += '\n     Comment: ' + r.comment;
     return s;
   }
@@ -378,29 +382,31 @@ function buildPrompt(rows) {
     + 'GLOBAL RULES:\n'
     + '- Use the search field to find each scout by name.\n'
     + '- Process all items independently; continue the full queue even if one item fails.\n'
-    + '- Confirm the requirement is NOT already Approved before making any change.\n'
-    + '- If already approved: report Needs review \u2014 Already approved. Do not re-enter.\n'
+    + '- For each requirement, locate it and check whether the Approved checkbox is checked and saved.\n'
+    + '- If the requirement shows as Completed or has a date but the Approved checkbox is NOT checked:\n'
+    + '  check the Approved checkbox, confirm the date is set correctly, click Save, verify it now shows Approved, then report Success.\n'
+    + '- If the requirement is already fully Approved with the correct date and the checkbox is saved: report Success.\n'
+    + '- Only report Needs review \u2014 Already approved if the item is approved with a DIFFERENT date than requested.\n'
     + '- If the scout cannot be found confidently, multiple scouts match, the requirement cannot be found,\n'
     + '  the merit badge cannot be matched exactly, or the page state is unexpected:\n'
     + '  do not guess \u2014 add to FAILED or NEEDS REVIEW with reason, then continue.\n'
-    + '- For rank requirements: mark items Approved, set the date exactly as given.\n'
-    + '- For merit badge requirements: check the requirement box, set the date exactly as given, then click Approve or Save. The requirement must show as Approved (not just Completed) after saving.\n'
+    + '- Mark items Approved, set the date exactly as given, add comment if listed.\n'
     + '- Verify each item shows Approved with the correct date after saving.\n'
     + '- Only stop the entire run for a blocking login/session failure.\n\n'
     + 'NAVIGATION PATHS:\n'
     + '- Rank requirements: search scout \u2192 open rank card \u2192 View More \u2192 find requirement \u2192 approve\n'
     + '- Merit badge requirements: search scout \u2192 scroll to Merit Badges \u2192 View All \u2192\n'
-    + '  search badge name \u2192 open badge \u2192 find requirement \u2192 check box \u2192 set date \u2192 click Approve/Save\n'
+    + '  search badge name \u2192 open badge \u2192 find requirement \u2192 approve\n'
     + '  (Use "View All" \u2014 do NOT rely on pending/started status)\n\n'
     + 'ACTIONS (process in order):\n\n'
     + actions
     + '\n\nREQUIRED OUTPUT FORMAT (after all actions are complete):\n\n'
     + 'SUCCESS\n'
-    + 'Scout: [name] | Item: [item] | Date: [date] | Result: Success\n\n'
+    + 'Scout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Success\n\n'
     + 'FAILED\n'
-    + 'Scout: [name] | Item: [item] | Date: [date] | Result: Failed | Reason: [brief reason]\n\n'
+    + 'Scout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Failed | Reason: [brief reason]\n\n'
     + 'NEEDS REVIEW\n'
-    + 'Scout: [name] | Item: [item] | Date: [date] | Result: Needs review | Reason: [Already approved / Multiple scouts matched / Requirement not found / Merit badge not found / Unexpected page state / CAPTCHA image challenge]\n\n'
+    + 'Scout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Needs review | Reason: [Already approved with different date / Multiple scouts matched / Requirement not found / Merit badge not found / Unexpected page state / CAPTCHA image challenge]\n\n'
     + 'Then: "Done. X succeeded, Y failed, Z need review."';
 }
 
@@ -449,8 +455,8 @@ function parseResults(raw) {
     if (/^SUCCESS$/i.test(t))      { section = 'SUCCESS';      return acc; }
     if (/^FAILED$/i.test(t))       { section = 'FAILED';       return acc; }
     if (/^NEEDS REVIEW$/i.test(t)) { section = 'NEEDS REVIEW'; return acc; }
-    const m = t.match(/Scout:\s*(.+?)\s*\|\s*Item:\s*(.+?)\s*\|\s*Date:\s*(.+?)\s*\|\s*Result:\s*(Success|Failed|Needs review)(?:\s*\|\s*Reason:\s*(.+))?/i);
-    if (m) acc.push({ name: m[1].trim(), item: m[2].trim(), date: m[3].trim(), result: m[4].trim(), reason: (m[5] || '').trim(), section });
+    const m = t.match(/Scout:\s*(.+?)\s*\|\s*Item:\s*(.+?)\s*\|\s*(?:Requirement:\s*(.+?)\s*\|\s*)?Date:\s*(.+?)\s*\|\s*Result:\s*(Success|Failed|Needs review)(?:\s*\|\s*Reason:\s*(.+))?/i);
+    if (m) acc.push({ name: m[1].trim(), item: m[2].trim(), req: (m[3] || '').trim(), date: m[4].trim(), result: m[5].trim(), reason: (m[6] || '').trim(), section });
     return acc;
   }, []);
 }
@@ -475,10 +481,10 @@ function renderResultSummary(results) {
     + '<div class="result-card rc-review"><div class="num">'  + review.length  + '</div><div class="lbl">Needs Review</div></div>'
     + '</div>';
   if (results.length) {
-    html += '<div class="tbl-wrap"><table><thead><tr><th>Scout</th><th>Item</th><th>Date</th><th>Result</th><th>Reason</th></tr></thead><tbody>';
+    html += '<div class="tbl-wrap"><table><thead><tr><th>Scout</th><th>Item</th><th>Req</th><th>Date</th><th>Result</th><th>Reason</th></tr></thead><tbody>';
     results.forEach(r => {
       const cls = r.result.toLowerCase() === 'success' ? 'b-success' : r.result.toLowerCase() === 'failed' ? 'b-failed' : 'b-review';
-      html += '<tr><td>' + esc(r.name) + '</td><td>' + esc(r.item) + '</td><td>' + esc(r.date) + '</td>'
+      html += '<tr><td>' + esc(r.name) + '</td><td>' + esc(r.item) + '</td><td>' + esc(r.req || '\u2014') + '</td><td>' + esc(r.date) + '</td>'
         + '<td><span class="badge ' + cls + '">' + esc(r.result) + '</span></td><td>' + esc(r.reason || '\u2014') + '</td></tr>';
     });
     html += '</tbody></table></div>';
@@ -544,6 +550,7 @@ function buildReviewPrompt(results) {
   const lines = items.map((r, i) =>
     '  ' + (i+1) + '. Scout: ' + r.name
     + '\n     Item: ' + r.item
+    + (r.req ? '\n     Requirement: ' + r.req : '')
     + '\n     Date: ' + r.date
     + '\n     Prior reason: ' + (r.reason || 'Needs review')
     + '\n     Instruction: Re-attempt after my clarification. If still unclear, report Needs review again.'
@@ -556,14 +563,17 @@ function buildReviewPrompt(results) {
     + 'GLOBAL RULES:\n'
     + '- Work ONLY the items listed below.\n'
     + '- Re-attempt only after applying my guidance or decision.\n'
-    + '- If already approved, report Needs review: Already approved.\n'
+    + '- If a requirement shows as Completed or has a date but the Approved checkbox is NOT checked:\n'
+    + '  check the Approved checkbox, confirm the date is correct, click Save, verify it shows Approved, then report Success.\n'
+    + '- If already fully Approved with the correct date: report Success.\n'
+    + '- Only report Needs review \u2014 Already approved if approved with a DIFFERENT date than requested.\n'
     + '- If scout/requirement still cannot be found confidently, report Needs review with reason.\n\n'
     + 'ITEMS TO RESOLVE:\n\n'
     + lines
     + '\n\nREQUIRED OUTPUT FORMAT:\n\n'
-    + 'SUCCESS\nScout: [name] | Item: [item] | Date: [date] | Result: Success\n\n'
-    + 'FAILED\nScout: [name] | Item: [item] | Date: [date] | Result: Failed | Reason: [brief reason]\n\n'
-    + 'NEEDS REVIEW\nScout: [name] | Item: [item] | Date: [date] | Result: Needs review | Reason: [brief reason]\n\n'
+    + 'SUCCESS\nScout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Success\n\n'
+    + 'FAILED\nScout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Failed | Reason: [brief reason]\n\n'
+    + 'NEEDS REVIEW\nScout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Needs review | Reason: [brief reason]\n\n'
     + 'Then: "Done. X succeeded, Y failed, Z need review."';
 }
 

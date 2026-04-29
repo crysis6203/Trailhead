@@ -31,7 +31,7 @@ if (empty($expectedSecret) || !hash_equals($expectedSecret, $providedSecret)) {
 }
 
 // Validate required fields
-$runId  = isset($body['run_id']) ? (int) $body['run_id'] : 0;
+$runId   = isset($body['run_id']) ? (int) $body['run_id'] : 0;
 $results = $body['results'] ?? [];
 
 if ($runId <= 0 || empty($results) || !is_array($results)) {

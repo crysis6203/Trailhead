@@ -1,0 +1,83 @@
+Use Scoutbook Plus to enter rank advancements and merit badge requirements.
+
+ACCOUNT: chrispowell6203
+UNIT CONTEXT: Scouts BSA Troop 911 Boys - Position: Scoutmaster
+SITE: https://advancements.scouting.org
+
+LOGIN STEPS (do these first):
+- Navigate to https://advancements.scouting.org
+- Wait for the page to fully load.
+- LastPass will auto-fill username and password - confirm both fields are populated.
+- Click the "I'm not a robot" reCAPTCHA v2 checkbox and wait for the green checkmark.
+- If an image challenge appears instead, STOP and notify me - I will complete it manually.
+- Click the Login button and wait for the dashboard to load.
+- Dismiss any startup popup.
+- Verify account is chrispowell6203 and context is Troop 911 Scoutmaster before proceeding.
+
+GLOBAL RULES:
+- Use the search field to find each scout by name.
+- Process all items independently; continue the full queue even if one item fails.
+- Confirm the requirement is NOT already Approved before making any change.
+- If already approved: report Needs review - Already approved. Do not re-enter.
+- If the scout cannot be found confidently, multiple scouts match, the requirement cannot be found,
+  the merit badge cannot be matched exactly, or the page state is unexpected:
+  do not guess - add to FAILED or NEEDS REVIEW with reason, then continue.
+- Mark items Approved, set the date exactly as given, add comment if listed.
+- Verify the requirement shows Approved with the correct date after saving.
+- Only stop the entire run for a blocking login/session failure.
+
+NAVIGATION PATHS:
+- Rank requirements: search scout -> open rank card -> View More -> find requirement -> approve
+- Merit badge requirements: search scout -> scroll to Merit Badges -> View All ->
+  search badge name -> open badge -> find requirement -> approve
+  (Use "View All" - do NOT rely on pending/started status)
+
+ACTIONS (process in order):
+
+%%ACTIONS%%
+
+REQUIRED OUTPUT FORMAT (after all actions are complete):
+
+SUCCESS
+Scout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Success
+
+FAILED
+Scout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Failed | Reason: [brief reason]
+
+NEEDS REVIEW
+Scout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Needs review | Reason: [Already approved / Multiple scouts matched / Requirement not found / Merit badge not found / Unexpected page state / CAPTCHA image challenge]
+
+Then: "Done. X succeeded, Y failed, Z need review."
+
+---
+
+FINAL STEP - CALLBACK (do this after all actions and output above are complete):
+
+After printing the output above, send an HTTP POST request to:
+  https://trailhead.mjtroop911.org/api/run/callback.php
+
+Use this exact JSON structure:
+
+{
+  "run_id": %%RUN_ID%%,
+  "secret": "troop911-trailhead-X7k2mP9qL4v",
+  "results": [
+    {
+      "scout": "[scout name]",
+      "type": "[rank or merit_badge]",
+      "item": "[item name]",
+      "requirement": "[requirement number e.g. 1a]",
+      "date": "[date as given]",
+      "status": "[entered or already_approved or needs_review or failed]",
+      "note": "[reason if failed or needs_review, otherwise omit]"
+    }
+  ]
+}
+
+Rules for the callback:
+- Include every action in the results array, one object per requirement.
+- Map result statuses exactly: Success = entered, Already approved = already_approved,
+  Needs review = needs_review, Failed = failed.
+- Send the POST with header: Content-Type: application/json
+- If the POST fails, note it at the end of your output but do not retry.
+- The callback is the last thing you do. Do not take any further actions after it.

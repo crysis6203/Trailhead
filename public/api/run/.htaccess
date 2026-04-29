@@ -1,0 +1,22 @@
+# Trailhead — API directory rules
+# Allow JSON POST requests to PHP endpoints
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+</IfModule>
+
+# Allow JSON content type
+<IfModule mod_headers.c>
+    Header always set Accept "application/json"
+</IfModule>
+
+# Ensure PHP processes these requests directly
+<FilesMatch "\.php$">
+    SetHandler application/x-httpd-php
+</FilesMatch>
+
+# Allow POST with application/json content type
+<Limit POST>
+    Order Allow,Deny
+    Allow from all
+</Limit>

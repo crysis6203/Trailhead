@@ -347,7 +347,8 @@ function buildAction(r, i) {
       + '\n     Date: ' + r.date
       + '\n     Navigation: Find scout' + arrow + 'scroll to Merit Badges' + arrow
       + 'View All' + arrow + 'search "' + r.badge + '"' + arrow
-      + 'open badge' + arrow + 'find Req ' + r.req + arrow + 'approve';
+      + 'open badge' + arrow + 'find Req ' + r.req + arrow
+      + 'check the box or click Approve' + arrow + 'set date to ' + r.date + arrow + 'save';
     if (r.comment) s += '\n     Comment: ' + r.comment;
     return s;
   }
@@ -387,23 +388,24 @@ function buildPrompt(rows) {
     + '- If the scout cannot be found confidently, multiple scouts match, the requirement cannot be found,\n'
     + '  the merit badge cannot be matched exactly, or the page state is unexpected:\n'
     + '  do not guess \u2014 add to FAILED or NEEDS REVIEW with reason, then continue.\n'
-    + '- Mark items Approved, set the date exactly as given, add comment if listed.\n'
-    + '- Verify the requirement shows Approved with the correct date after saving.\n'
+    + '- For rank requirements: mark items Approved, set the date exactly as given.\n'
+    + '- For merit badge requirements: check the requirement box, set the date exactly as given, then click Approve or Save. The requirement must show as Approved (not just Completed) after saving.\n'
+    + '- Verify each item shows Approved with the correct date after saving.\n'
     + '- Only stop the entire run for a blocking login/session failure.\n\n'
     + 'NAVIGATION PATHS:\n'
     + '- Rank requirements: search scout \u2192 open rank card \u2192 View More \u2192 find requirement \u2192 approve\n'
     + '- Merit badge requirements: search scout \u2192 scroll to Merit Badges \u2192 View All \u2192\n'
-    + '  search badge name \u2192 open badge \u2192 find requirement \u2192 approve\n'
+    + '  search badge name \u2192 open badge \u2192 find requirement \u2192 check box \u2192 set date \u2192 click Approve/Save\n'
     + '  (Use "View All" \u2014 do NOT rely on pending/started status)\n\n'
     + 'ACTIONS (process in order):\n\n'
     + actions
     + '\n\nREQUIRED OUTPUT FORMAT (after all actions are complete):\n\n'
     + 'SUCCESS\n'
-    + 'Scout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Success\n\n'
+    + 'Scout: [name] | Item: [item] | Date: [date] | Result: Success\n\n'
     + 'FAILED\n'
-    + 'Scout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Failed | Reason: [brief reason]\n\n'
+    + 'Scout: [name] | Item: [item] | Date: [date] | Result: Failed | Reason: [brief reason]\n\n'
     + 'NEEDS REVIEW\n'
-    + 'Scout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Needs review | Reason: [Already approved / Multiple scouts matched / Requirement not found / Merit badge not found / Unexpected page state / CAPTCHA image challenge]\n\n'
+    + 'Scout: [name] | Item: [item] | Date: [date] | Result: Needs review | Reason: [Already approved / Multiple scouts matched / Requirement not found / Merit badge not found / Unexpected page state / CAPTCHA image challenge]\n\n'
     + 'Then: "Done. X succeeded, Y failed, Z need review."';
 }
 
@@ -419,6 +421,7 @@ function doSend() {
   btn.textContent = '\u23f3 Saving\u2026';
   const fd = new FormData();
   fd.append('action', 'save_queue');
+  fd.append('session_name', document.getElementById('sessionName').value.trim() || '');
   fd.append('queue_json', JSON.stringify(queueRows));
   fetch(window.location.href, { method: 'POST', body: fd })
     .then(r => r.json())
@@ -451,8 +454,8 @@ function parseResults(raw) {
     if (/^SUCCESS$/i.test(t))      { section = 'SUCCESS';      return acc; }
     if (/^FAILED$/i.test(t))       { section = 'FAILED';       return acc; }
     if (/^NEEDS REVIEW$/i.test(t)) { section = 'NEEDS REVIEW'; return acc; }
-    const m = t.match(/Scout:\s*(.+?)\s*\|\s*Item:\s*(.+?)\s*\|\s*(?:Requirement:\s*(.+?)\s*\|\s*)?Date:\s*(.+?)\s*\|\s*Result:\s*(Success|Failed|Needs review)(?:\s*\|\s*Reason:\s*(.+))?/i);
-    if (m) acc.push({ name: m[1].trim(), item: m[2].trim(), req: (m[3] || '').trim(), date: m[4].trim(), result: m[5].trim(), reason: (m[6] || '').trim(), section });
+    const m = t.match(/Scout:\s*(.+?)\s*\|\s*Item:\s*(.+?)\s*\|\s*Date:\s*(.+?)\s*\|\s*Result:\s*(Success|Failed|Needs review)(?:\s*\|\s*Reason:\s*(.+))?/i);
+    if (m) acc.push({ name: m[1].trim(), item: m[2].trim(), date: m[3].trim(), result: m[4].trim(), reason: (m[5] || '').trim(), section });
     return acc;
   }, []);
 }
@@ -477,10 +480,10 @@ function renderResultSummary(results) {
     + '<div class="result-card rc-review"><div class="num">'  + review.length  + '</div><div class="lbl">Needs Review</div></div>'
     + '</div>';
   if (results.length) {
-    html += '<div class="tbl-wrap"><table><thead><tr><th>Scout</th><th>Item</th><th>Req</th><th>Date</th><th>Result</th><th>Reason</th></tr></thead><tbody>';
+    html += '<div class="tbl-wrap"><table><thead><tr><th>Scout</th><th>Item</th><th>Date</th><th>Result</th><th>Reason</th></tr></thead><tbody>';
     results.forEach(r => {
       const cls = r.result.toLowerCase() === 'success' ? 'b-success' : r.result.toLowerCase() === 'failed' ? 'b-failed' : 'b-review';
-      html += '<tr><td>' + esc(r.name) + '</td><td>' + esc(r.item) + '</td><td>' + esc(r.req || '\u2014') + '</td><td>' + esc(r.date) + '</td>'
+      html += '<tr><td>' + esc(r.name) + '</td><td>' + esc(r.item) + '</td><td>' + esc(r.date) + '</td>'
         + '<td><span class="badge ' + cls + '">' + esc(r.result) + '</span></td><td>' + esc(r.reason || '\u2014') + '</td></tr>';
     });
     html += '</tbody></table></div>';
@@ -546,7 +549,6 @@ function buildReviewPrompt(results) {
   const lines = items.map((r, i) =>
     '  ' + (i+1) + '. Scout: ' + r.name
     + '\n     Item: ' + r.item
-    + (r.req ? '\n     Requirement: ' + r.req : '')
     + '\n     Date: ' + r.date
     + '\n     Prior reason: ' + (r.reason || 'Needs review')
     + '\n     Instruction: Re-attempt after my clarification. If still unclear, report Needs review again.'
@@ -564,9 +566,9 @@ function buildReviewPrompt(results) {
     + 'ITEMS TO RESOLVE:\n\n'
     + lines
     + '\n\nREQUIRED OUTPUT FORMAT:\n\n'
-    + 'SUCCESS\nScout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Success\n\n'
-    + 'FAILED\nScout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Failed | Reason: [brief reason]\n\n'
-    + 'NEEDS REVIEW\nScout: [name] | Item: [item] | Requirement: [req] | Date: [date] | Result: Needs review | Reason: [brief reason]\n\n'
+    + 'SUCCESS\nScout: [name] | Item: [item] | Date: [date] | Result: Success\n\n'
+    + 'FAILED\nScout: [name] | Item: [item] | Date: [date] | Result: Failed | Reason: [brief reason]\n\n'
+    + 'NEEDS REVIEW\nScout: [name] | Item: [item] | Date: [date] | Result: Needs review | Reason: [brief reason]\n\n'
     + 'Then: "Done. X succeeded, Y failed, Z need review."';
 }
 

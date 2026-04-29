@@ -1,10 +1,10 @@
 <?php
-// Trailhead — Run Callback Endpoint
-// Receives structured results from Computer after a Scoutbook run
-// POST https://trailhead.mjtroop911.org/api/run/callback.php
+// Trailhead — Computer Callback Endpoint
+// Receives structured JSON results from Perplexity Computer after a Scoutbook run
+// Location: public/api/run/callback.php
+// Self-contained: loads its own .env and DB connection
 
-// Resolve app root: public/api/run -> public -> app root
-$appRoot = dirname(__DIR__, 3);
+$appRoot = dirname(__DIR__, 3); // public/api/run -> public/api -> public -> app root
 
 // Load .env
 $envFile = $appRoot . '/.env';
@@ -18,7 +18,7 @@ if (file_exists($envFile)) {
     }
 }
 
-// Self-contained DB connection
+// Self-contained DB connection — key names match your .env (DB_HOST, DB_NAME, DB_USER, DB_PASS)
 try {
     $host = $_ENV['DB_HOST'] ?? getenv('DB_HOST') ?: 'localhost';
     $port = $_ENV['DB_PORT'] ?? getenv('DB_PORT') ?: '3306';
@@ -80,7 +80,7 @@ if ($runId <= 0 || empty($results) || !is_array($results)) {
 }
 
 // Confirm run_history record exists
-$stmt = $pdo->prepare('SELECT id FROM run_history WHERE id = ?');
+$stmt = $pdo->prepare("SELECT id FROM run_history WHERE id = ?");
 $stmt->execute([$runId]);
 if (!$stmt->fetch()) {
     http_response_code(404);
@@ -101,18 +101,20 @@ $insert = $pdo->prepare("
 ");
 
 foreach ($results as $item) {
-    $scout       = trim($item['scout']       ?? '');
-    $type        = trim($item['type']        ?? 'rank');
-    $itemName    = trim($item['item']        ?? '');
+    $scout       = trim($item['scout'] ?? '');
+    $type        = trim($item['type'] ?? 'rank');
+    $itemName    = trim($item['item'] ?? '');
     $requirement = trim($item['requirement'] ?? '');
-    $date        = trim($item['date']        ?? date('Y-m-d'));
-    $status      = trim($item['status']      ?? 'failed');
-    $note        = trim($item['note']        ?? '');
+    $date        = trim($item['date'] ?? date('Y-m-d'));
+    $status      = trim($item['status'] ?? 'failed');
+    $note        = trim($item['note'] ?? '');
 
+    // Normalise type value
     if (!in_array($type, ['rank', 'merit_badge', 'award'])) {
         $type = 'rank';
     }
 
+    // Normalise status value
     $statusMap = [
         'entered'          => 'entered',
         'success'          => 'entered',
@@ -123,6 +125,7 @@ foreach ($results as $item) {
     ];
     $status = $statusMap[strtolower($status)] ?? 'failed';
 
+    // Normalise date
     $parsedDate = date('Y-m-d', strtotime($date));
     if ($parsedDate === '1970-01-01') {
         $parsedDate = date('Y-m-d');
@@ -139,11 +142,13 @@ foreach ($results as $item) {
         ':note'            => $note ?: null,
     ]);
 
-    if ($status === 'entered')      $succeeded++;
-    elseif ($status === 'failed')   $failed++;
-    else                            $needsReview++;
+    // Tally counters
+    if ($status === 'entered')          $succeeded++;
+    elseif ($status === 'failed')       $failed++;
+    else                                $needsReview++;
 }
 
+// Update run_history record with final counts and status
 $pdo->prepare("
     UPDATE run_history SET
         status       = 'complete',
@@ -161,6 +166,7 @@ $pdo->prepare("
     ':run_id'       => $runId,
 ]);
 
+// Return summary
 echo json_encode([
     'success'      => true,
     'run_id'       => $runId,

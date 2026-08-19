@@ -9,8 +9,21 @@ require __DIR__ . '/../../src/Database.php';
 require __DIR__ . '/../../src/Auth.php';
 
 // --- Load .env if present (simple, no composer dependency) -----------------
-$envPath = __DIR__ . '/../../.env';
-if (file_exists($envPath)) {
+// Checked in order:
+//   1. Cloudways' private_html folder — a sibling of public_html, one level
+//      above the webroot, provided specifically for sensitive config files
+//      like this one. This is where .env lives in production.
+//   2. The old public_html-relative location, for local development where
+//      there's no private_html (e.g. `php -S` from public/, repo root .env).
+$envCandidates = [
+    __DIR__ . '/../../../private_html/.env',
+    __DIR__ . '/../../.env',
+];
+
+foreach ($envCandidates as $envPath) {
+    if (!file_exists($envPath)) {
+        continue;
+    }
     foreach (file($envPath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) as $line) {
         if (str_starts_with(trim($line), '#') || !str_contains($line, '=')) {
             continue;
@@ -18,6 +31,7 @@ if (file_exists($envPath)) {
         [$key, $value] = explode('=', $line, 2);
         putenv(trim($key) . '=' . trim($value));
     }
+    break; // first match wins
 }
 
 header('Content-Type: application/json; charset=utf-8');

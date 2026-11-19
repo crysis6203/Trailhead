@@ -5,6 +5,7 @@ declare(strict_types=1);
 error_reporting(E_ALL);
 ini_set('display_errors', '0'); // never leak errors to output; log instead
 
+require __DIR__ . '/../../src/env.php';
 require __DIR__ . '/../../src/Database.php';
 require __DIR__ . '/../../src/Auth.php';
 
@@ -29,7 +30,12 @@ foreach ($envCandidates as $envPath) {
             continue;
         }
         [$key, $value] = explode('=', $line, 2);
-        putenv(trim($key) . '=' . trim($value));
+        // NOT putenv(): some managed hosts (Cloudways included) disable it
+        // in php.ini, since it mutates the whole PHP-FPM worker process
+        // rather than just the current request. A plain $_ENV array write
+        // is never disabled and works identically for our purposes — see
+        // src/env.php for the read side.
+        $_ENV[trim($key)] = trim($value);
     }
     break; // first match wins
 }

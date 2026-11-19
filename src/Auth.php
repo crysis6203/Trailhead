@@ -10,7 +10,7 @@ final class Auth
 {
     public static function requireApiKey(): void
     {
-        $expected = getenv('API_KEY');
+        $expected = env('API_KEY');
 
         if (!$expected) {
             // Misconfiguration — fail closed, never fail open.

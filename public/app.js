@@ -1,4 +1,4 @@
-// Trailhead frontend — vanilla JS, no build step, calls the PHP API directly.
+// Trailhead frontend � vanilla JS, no build step, calls the PHP API directly.
 
 const API_KEY_STORAGE = 'trailhead_api_key';
 
@@ -64,6 +64,7 @@ function el(html) {
 const state = {
     tab: 'signoff',        // 'signoff' | 'queue' | 'history'
     screen: { name: 'list' }, // signoff sub-navigation
+    historyScreen: { name: 'list' }, // history sub-navigation: 'list' | 'detail'
     scouts: [],
     queueScouts: [],
     runs: [],
@@ -128,7 +129,7 @@ function renderScoutList(body) {
     body.appendChild(el(`
         <div class="header">
             <h1>Sign off</h1>
-            <div class="sub">Troop 911 · ${state.scouts.length} scouts</div>
+            <div class="sub">Troop 911 - ${state.scouts.length} scouts</div>
         </div>
     `));
 
@@ -152,7 +153,7 @@ function renderScoutList(body) {
                         <div class="avatar" style="background:${patrolColor(s.patrol)}">${initials(s.name)}</div>
                         <div>
                             <div class="scout-name">${s.name}</div>
-                            <div class="scout-sub">${s.lastRank || ''} · ${s.patrol || ''}</div>
+                            <div class="scout-sub">${s.lastRank || ''} - ${s.patrol || ''}</div>
                         </div>
                     </div>
                 </button>
@@ -172,7 +173,7 @@ function renderScoutDetail(body, scout) {
             <button class="back-btn">&larr;</button>
             <div>
                 <div style="font-size:16px; font-weight:600;">${scout.name}</div>
-                <div style="font-size:12px; color:var(--stone-400);">${scout.lastRank || ''} · ${scout.patrol || ''} Patrol</div>
+                <div style="font-size:12px; color:var(--stone-400);">${scout.lastRank || ''} - ${scout.patrol || ''} Patrol</div>
             </div>
         </div>
     `);
@@ -275,7 +276,7 @@ function renderConfirmScreen(body, scout, pending) {
 
     wrap.appendChild(el(`<label class="field-label">Completion date</label>`));
     const dateBox = el(`<div class="field-box"><input type="date" value="${pending.date}" max="${todayISO()}"></div>`);
-    dateBox.querySelector('input').addEventListener('change', e => { pending.date = e.target.value; confirmBtn.textContent = `Sign off · ${formatDateLabel(pending.date)}`; });
+    dateBox.querySelector('input').addEventListener('change', e => { pending.date = e.target.value; confirmBtn.textContent = `Sign off - ${formatDateLabel(pending.date)}`; });
     wrap.appendChild(dateBox);
 
     const commentHeader = el(`
@@ -298,10 +299,10 @@ function renderConfirmScreen(body, scout, pending) {
     const btnRow = el(`<div class="btn-row"></div>`);
     const cancelBtn = el(`<button class="btn btn-cancel">Cancel</button>`);
     cancelBtn.onclick = () => { state.screen = { name: 'detail', scout }; render(); };
-    const confirmBtn = el(`<button class="btn btn-confirm">Sign off · ${formatDateLabel(pending.date)}</button>`);
+    const confirmBtn = el(`<button class="btn btn-confirm">Sign off - ${formatDateLabel(pending.date)}</button>`);
     confirmBtn.onclick = async () => {
         confirmBtn.disabled = true;
-        confirmBtn.textContent = 'Saving…';
+        confirmBtn.textContent = 'Saving...';
         try {
             await api('queue.php', {
                 method: 'POST',
@@ -321,7 +322,7 @@ function renderConfirmScreen(body, scout, pending) {
         } catch (err) {
             alert('Could not queue this signoff: ' + err.message);
             confirmBtn.disabled = false;
-            confirmBtn.textContent = `Sign off · ${formatDateLabel(pending.date)}`;
+            confirmBtn.textContent = `Sign off - ${formatDateLabel(pending.date)}`;
         }
     };
     btnRow.appendChild(cancelBtn);
@@ -332,10 +333,10 @@ function renderConfirmScreen(body, scout, pending) {
 function showToast(scout, label, date, comment) {
     const toast = el(`
         <div class="toast">
-            <div style="width:28px; height:28px; border-radius:50%; background:var(--emerald-500); display:flex; align-items:center; justify-content:center; flex-shrink:0;">✓</div>
+            <div style="width:28px; height:28px; border-radius:50%; background:var(--emerald-500); display:flex; align-items:center; justify-content:center; flex-shrink:0;"><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7L5.5 10.5L12 3.5" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
             <div>
                 <div style="font-size:13px; font-weight:500;">Queued for ${scout.name}</div>
-                <div style="font-size:11.5px; color:var(--stone-400);">${label} · ${formatDateLabel(date)}${comment ? ` · "${comment}"` : ''}</div>
+                <div style="font-size:11.5px; color:var(--stone-400);">${label} - ${formatDateLabel(date)}${comment ? ` - "${comment}"` : ''}</div>
             </div>
         </div>
     `);
@@ -355,7 +356,7 @@ function renderQueueTab(body) {
     body.appendChild(el(`
         <div class="header">
             <h1>Queue</h1>
-            <div class="sub">${state.queueScouts.length} scout${state.queueScouts.length !== 1 ? 's' : ''} · ${totalItems} item${totalItems !== 1 ? 's' : ''} pending</div>
+            <div class="sub">${state.queueScouts.length} scout${state.queueScouts.length !== 1 ? 's' : ''} - ${totalItems} item${totalItems !== 1 ? 's' : ''} pending</div>
         </div>
     `));
 
@@ -373,7 +374,7 @@ function renderQueueTab(body) {
                         <div class="avatar" style="background:${patrolColor(s.patrol)}">${initials(s.name)}</div>
                         <div>
                             <div class="scout-name">${s.name}</div>
-                            <div class="scout-sub">${s.patrol || ''} · ${s.items.length} item${s.items.length !== 1 ? 's' : ''}</div>
+                            <div class="scout-sub">${s.patrol || ''} - ${s.items.length} item${s.items.length !== 1 ? 's' : ''}</div>
                         </div>
                     </div>
                 </div>
@@ -387,7 +388,7 @@ function renderQueueTab(body) {
                     <div>
                         <span class="pill ${item.type === 'merit_badge' ? 'badge' : 'rank'}">${item.type === 'merit_badge' ? 'Badge' : 'Rank'}</span>
                         <div style="font-size:13.5px; font-weight:500; margin-top:4px;">${item.text}</div>
-                        <div style="font-size:11.5px; color:var(--stone-400); margin-top:2px;">${formatDateLabel(item.completionDate)}${item.comment ? ` · "${item.comment}"` : ''}</div>
+                        <div style="font-size:11.5px; color:var(--stone-400); margin-top:2px;">${formatDateLabel(item.completionDate)}${item.comment ? ` - "${item.comment}"` : ''}</div>
                     </div>
                     <button style="border:none; background:none; color:var(--stone-300); cursor:pointer; font-size:16px;">&times;</button>
                 </div>
@@ -415,6 +416,29 @@ async function loadHistory() {
 }
 
 function renderHistoryTab(body) {
+    if (state.historyScreen.name === 'list') renderHistoryList(body);
+    else if (state.historyScreen.name === 'detail') renderRunDetail(body, state.historyScreen.run);
+}
+
+function runStatusVisuals(run) {
+    const failed = run.status === 'failed';
+    const partial = run.status === 'partial';
+    const color = failed ? 'var(--red-400)' : (partial ? 'var(--amber-600)' : 'var(--emerald-500)');
+    // Inline SVG instead of a Unicode symbol (?/?) � some mobile browser
+    // font fallbacks don't include those glyphs and render a "?" instead.
+    // SVG paths render identically everywhere, with no font dependency.
+    let icon;
+    if (failed) {
+        icon = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="vertical-align:-2px;"><path d="M2 2L12 12M12 2L2 12" stroke="${color}" stroke-width="2" stroke-linecap="round"/></svg>`;
+    } else if (partial) {
+        icon = `<svg width="4" height="14" viewBox="0 0 4 14" fill="none" style="vertical-align:-2px;"><rect x="0" y="0" width="4" height="9" rx="1" fill="${color}"/><rect x="0" y="11" width="4" height="3" rx="1.5" fill="${color}"/></svg>`;
+    } else {
+        icon = `<svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="vertical-align:-2px;"><path d="M2 7L5.5 10.5L12 3.5" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+    }
+    return { failed, icon, color };
+}
+
+function renderHistoryList(body) {
     body.appendChild(el(`
         <div class="header">
             <h1>Sync history</h1>
@@ -429,27 +453,110 @@ function renderHistoryTab(body) {
 
     const list = el(`<div style="flex:1; overflow-y:auto;"></div>`);
     state.runs.forEach(run => {
-        const failed = run.status === 'failed';
-        const icon = failed ? '✕' : (run.status === 'partial' ? '!' : '✓');
-        const color = failed ? 'var(--red-400)' : (run.status === 'partial' ? 'var(--amber-600)' : 'var(--emerald-500)');
+        const { failed, icon, color } = runStatusVisuals(run);
         const row = el(`
-            <div class="run-row">
+            <button class="run-row" style="display:block; width:calc(100% - 32px); text-align:left; border:1px solid var(--stone-100); cursor:pointer;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                     <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="color:${color}; font-weight:700;">${icon}</span>
+                        <span>${icon}</span>
                         <span style="font-size:13.5px; font-weight:500;">${new Date(run.started_at).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
                     </div>
                     <span style="font-size:9.5px; font-weight:700; text-transform:uppercase; color:var(--stone-500); background:var(--stone-100); padding:2px 6px; border-radius:4px;">${run.run_type.replace('_', ' ')}</span>
                 </div>
                 ${failed
                     ? `<p style="font-size:12px; color:var(--red-400); margin:6px 0 0 24px;">${run.fail_reason || 'Run failed'}</p>`
-                    : `<div style="font-size:12px; color:var(--stone-400); margin:6px 0 0 24px;">${run.push_confirmed_count} confirmed${run.push_flagged_count > 0 ? ` · <span style="color:var(--amber-600);">${run.push_flagged_count} flagged</span>` : ''} · ${run.pull_updated_count} roster updates</div>`
+                    : `<div style="font-size:12px; color:var(--stone-400); margin:6px 0 0 24px;">${run.push_confirmed_count} confirmed${run.push_flagged_count > 0 ? ` - <span style="color:var(--amber-600);">${run.push_flagged_count} flagged</span>` : ''} - ${run.pull_updated_count} roster updates</div>`
                 }
-            </div>
+            </button>
         `);
+        row.onclick = () => { state.historyScreen = { name: 'detail', run: run.id }; render(); };
         list.appendChild(row);
     });
     body.appendChild(list);
+}
+
+async function renderRunDetail(body, runId) {
+    const header = el(`
+        <div class="detail-header">
+            <button class="back-btn">&larr;</button>
+            <div style="font-size:16px; font-weight:600;">Sync detail</div>
+        </div>
+    `);
+    header.querySelector('.back-btn').onclick = () => { state.historyScreen = { name: 'list' }; render(); };
+    body.appendChild(header);
+
+    const content = el(`<div style="flex:1; overflow-y:auto; padding:0 16px;"><p class="empty-state">Loading...</p></div>`);
+    body.appendChild(content);
+
+    let data;
+    try {
+        data = await api(`sync-runs.php?id=${runId}`);
+    } catch (err) {
+        content.innerHTML = `<p class="empty-state">Couldn't load this run's detail: ${err.message}</p>`;
+        return;
+    }
+
+    const run = data.run;
+    const { failed, icon, color } = runStatusVisuals(run);
+    const items = run.items || [];
+    const confirmed = items.filter(i => i.category === 'confirmed');
+    const flagged = items.filter(i => i.category === 'flagged');
+    const rosterUpdates = items.filter(i => i.category === 'roster_update' || i.category === 'requirement_status_update');
+
+    content.innerHTML = '';
+
+    content.appendChild(el(`
+        <div style="padding:12px 0; border-bottom:1px solid var(--stone-100); margin-bottom:12px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <span>${icon}</span>
+                <span style="font-size:14px; font-weight:600;">${new Date(run.started_at).toLocaleString()}</span>
+            </div>
+            ${failed
+                ? `<p style="font-size:12.5px; color:var(--red-400); margin:6px 0 0;">${run.fail_reason || 'Run failed'}</p>`
+                : `<p style="font-size:12px; color:var(--stone-400); margin:6px 0 0;">${run.push_confirmed_count} confirmed - ${run.push_flagged_count} flagged - ${run.pull_updated_count} roster updates</p>`
+            }
+        </div>
+    `));
+
+    if (flagged.length) {
+        content.appendChild(el(`<p style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--amber-700); margin:12px 0 6px;">Flagged (${flagged.length})</p>`));
+        flagged.forEach(item => {
+            content.appendChild(el(`
+                <div style="background:var(--amber-50); border-radius:10px; padding:10px 12px; margin-bottom:6px;">
+                    <div style="font-size:13px; font-weight:500;">${item.scout_name || 'Unknown scout'} - ${item.description}</div>
+                    ${item.detail ? `<div style="font-size:11.5px; color:var(--amber-700); margin-top:2px;">${item.detail}</div>` : ''}
+                </div>
+            `));
+        });
+    }
+
+    if (confirmed.length) {
+        content.appendChild(el(`<p style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--stone-400); margin:12px 0 6px;">Confirmed (${confirmed.length})</p>`));
+        confirmed.forEach(item => {
+            content.appendChild(el(`
+                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--stone-50);">
+                    <span style="font-size:13px;">${item.scout_name || 'Unknown scout'}</span>
+                    <span style="font-size:12px; color:var(--stone-400);">${item.description}</span>
+                </div>
+            `));
+        });
+    }
+
+    if (rosterUpdates.length) {
+        content.appendChild(el(`<p style="font-size:11px; font-weight:700; text-transform:uppercase; color:var(--stone-400); margin:12px 0 6px;">Roster &amp; requirement updates (${rosterUpdates.length})</p>`));
+        rosterUpdates.forEach(item => {
+            content.appendChild(el(`
+                <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--stone-50);">
+                    <span style="font-size:13px;">${item.scout_name || item.description}</span>
+                    <span style="font-size:12px; color:var(--stone-400);">${item.scout_name ? item.description : ''}</span>
+                </div>
+            `));
+        });
+    }
+
+    if (!items.length) {
+        content.appendChild(el(`<p class="empty-state">No item-level detail was logged for this run (likely an older run from before detail logging was added).</p>`));
+    }
 }
 
 // ---- Boot -----------------------------------------------------------------

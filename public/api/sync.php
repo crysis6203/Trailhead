@@ -10,7 +10,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 /**
  * This endpoint is the PULL half of the sync. It intentionally has no code
- * path that can write to `signoffs` — that table is not even referenced
+ * path that can write to `signoffs` - that table is not even referenced
  * below. See /areas/trailhead: "the pull must never touch signoff/queue
  * history records."
  *
@@ -21,11 +21,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
  *   "ranks": [{name, version_year,
  *              requirements: [{code, text, sort_order}, ...]}, ...],
  *   "rank_progress": [{scout_id, rank_name, version_year, status}, ...],
+ *   "rank_requirement_status": [{scout_id, rank_name, version_year,
+ *       requirement_code, completed, completion_date}, ...],
  *   "merit_badges": [{name, eagle_required, versions: [{version_year,
  *       is_current, expiration_date,
  *       requirements: [{code, text, checkable, parent_code, sort_order}, ...]
  *   }, ...]}, ...],
- *   "merit_badge_progress": [{scout_id, badge_name, version_year, status}, ...]
+ *   "merit_badge_progress": [{scout_id, badge_name, version_year, status}, ...],
+ *   "merit_badge_requirement_status": [{scout_id, badge_name, version_year,
+ *       requirement_code, completed, completion_date}, ...]
  * }
  */
 
@@ -38,8 +42,10 @@ try {
     $updated += syncScouts($db, $body['scouts'] ?? []);
     $updated += syncRanks($db, $body['ranks'] ?? []);
     $updated += syncRankProgress($db, $body['rank_progress'] ?? []);
+    $updated += syncRankRequirementStatus($db, $body['rank_requirement_status'] ?? []);
     $updated += syncMeritBadges($db, $body['merit_badges'] ?? []);
     $updated += syncMeritBadgeProgress($db, $body['merit_badge_progress'] ?? []);
+    $updated += syncMeritBadgeRequirementStatus($db, $body['merit_badge_requirement_status'] ?? []);
 
     $db->commit();
 } catch (Throwable $e) {
@@ -93,10 +99,12 @@ function syncRanks(PDO $db, array $ranks): int
     ');
     $findVersion = $db->prepare('SELECT id FROM rank_versions WHERE rank_id = ? AND version_year = ?');
     $upsertReq = $db->prepare('
-        INSERT INTO rank_requirements (rank_version_id, requirement_code, display_text, sort_order)
-        VALUES (?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE display_text = VALUES(display_text), sort_order = VALUES(sort_order)
+        INSERT INTO rank_requirements (rank_version_id, parent_requirement_id, requirement_code, display_text, is_checkable, sort_order)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE display_text = VALUES(display_text),
+            is_checkable = VALUES(is_checkable), sort_order = VALUES(sort_order)
     ');
+    $findReqId = $db->prepare('SELECT id FROM rank_requirements WHERE rank_version_id = ? AND requirement_code = ?');
 
     $count = 0;
     foreach ($ranks as $rank) {
@@ -108,8 +116,24 @@ function syncRanks(PDO $db, array $ranks): int
         $findVersion->execute([$rankId, $rank['version_year']]);
         $versionId = $findVersion->fetchColumn();
 
-        foreach ($rank['requirements'] ?? [] as $req) {
-            $upsertReq->execute([$versionId, $req['code'], $req['text'], $req['sort_order']]);
+        // Two passes, same pattern as merit badges: parents (no parent_code)
+        // first, so children can resolve their parent's real DB id via
+        // requirement_code lookup. Most ranks are flat (every requirement
+        // has no parent_code) - this only matters for ranks like Star Scout
+        // that group sub-items under a header (e.g. "6." containing 6a/6b).
+        $requirements = $rank['requirements'] ?? [];
+        usort($requirements, fn($a, $b) => empty($b['parent_code']) <=> empty($a['parent_code']));
+
+        foreach ($requirements as $req) {
+            $parentId = null;
+            if (!empty($req['parent_code'])) {
+                $findReqId->execute([$versionId, $req['parent_code']]);
+                $parentId = $findReqId->fetchColumn() ?: null;
+            }
+            $upsertReq->execute([
+                $versionId, $parentId, $req['code'], $req['text'],
+                (int) ($req['checkable'] ?? true), $req['sort_order'],
+            ]);
             $count++;
         }
     }
@@ -232,6 +256,66 @@ function syncMeritBadgeProgress(PDO $db, array $progress): int
         }
 
         $upsert->execute([$p['scout_id'], $badgeId, $versionId, $p['status']]);
+        $count++;
+    }
+
+    return $count;
+}
+
+function syncRankRequirementStatus(PDO $db, array $statuses): int
+{
+    if (!$statuses) return 0;
+
+    $findReqId = $db->prepare('
+        SELECT rr.id FROM rank_requirements rr
+        JOIN rank_versions rv ON rv.id = rr.rank_version_id
+        JOIN ranks r ON r.id = rv.rank_id
+        WHERE r.name = ? AND rv.version_year = ? AND rr.requirement_code = ?
+    ');
+    $upsert = $db->prepare('
+        INSERT INTO scout_rank_requirement_status (scout_id, rank_requirement_id, completed, completion_date, last_synced_at)
+        VALUES (?, ?, ?, ?, NOW())
+        ON DUPLICATE KEY UPDATE completed = VALUES(completed),
+            completion_date = VALUES(completion_date), last_synced_at = NOW()
+    ');
+
+    $count = 0;
+    foreach ($statuses as $s) {
+        $findReqId->execute([$s['rank_name'], $s['version_year'], $s['requirement_code']]);
+        $reqId = $findReqId->fetchColumn();
+        if (!$reqId) continue;
+
+        $upsert->execute([$s['scout_id'], $reqId, (int) !empty($s['completed']), $s['completion_date'] ?? null]);
+        $count++;
+    }
+
+    return $count;
+}
+
+function syncMeritBadgeRequirementStatus(PDO $db, array $statuses): int
+{
+    if (!$statuses) return 0;
+
+    $findReqId = $db->prepare('
+        SELECT req.id FROM merit_badge_requirements req
+        JOIN merit_badge_versions mbv ON mbv.id = req.merit_badge_version_id
+        JOIN merit_badges mb ON mb.id = mbv.merit_badge_id
+        WHERE mb.name = ? AND mbv.version_year = ? AND req.requirement_code = ?
+    ');
+    $upsert = $db->prepare('
+        INSERT INTO scout_merit_badge_requirement_status (scout_id, merit_badge_requirement_id, completed, completion_date, last_synced_at)
+        VALUES (?, ?, ?, ?, NOW())
+        ON DUPLICATE KEY UPDATE completed = VALUES(completed),
+            completion_date = VALUES(completion_date), last_synced_at = NOW()
+    ');
+
+    $count = 0;
+    foreach ($statuses as $s) {
+        $findReqId->execute([$s['badge_name'], $s['version_year'], $s['requirement_code']]);
+        $reqId = $findReqId->fetchColumn();
+        if (!$reqId) continue;
+
+        $upsert->execute([$s['scout_id'], $reqId, (int) !empty($s['completed']), $s['completion_date'] ?? null]);
         $count++;
     }
 

@@ -174,19 +174,19 @@ function syncMeritBadges(PDO $db, array $badges): int
 
     $count = 0;
     foreach ($badges as $badge) {
-        $upsertBadge->execute([$badge['name'], !empty($badge['eagle_required'])]);
+        $upsertBadge->execute([$badge['name'], (int) !empty($badge['eagle_required'])]);
         $findBadge->execute([$badge['name']]);
         $badgeId = $findBadge->fetchColumn();
 
         foreach ($badge['versions'] ?? [] as $version) {
-            $upsertVersion->execute([$badgeId, $version['version_year'], !empty($version['is_current']), $version['expiration_date'] ?? null]);
+            $upsertVersion->execute([$badgeId, $version['version_year'], (int) !empty($version['is_current']), $version['expiration_date'] ?? null]);
             $findVersion->execute([$badgeId, $version['version_year']]);
             $versionId = $findVersion->fetchColumn();
 
             // Two passes: parents (no parent_code) first, so children can
             // resolve their parent's real DB id via requirement_code lookup.
             $requirements = $version['requirements'] ?? [];
-            usort($requirements, fn($a, $b) => empty($a['parent_code']) <=> empty($b['parent_code']) ? -1 : 1);
+            usort($requirements, fn($a, $b) => empty($b['parent_code']) <=> empty($a['parent_code']));
 
             foreach ($requirements as $req) {
                 $parentId = null;
@@ -196,7 +196,7 @@ function syncMeritBadges(PDO $db, array $badges): int
                 }
                 $upsertReq->execute([
                     $versionId, $parentId, $req['code'], $req['text'],
-                    $req['checkable'] ?? true, $req['sort_order'],
+                    (int) ($req['checkable'] ?? true), $req['sort_order'],
                 ]);
                 $count++;
             }
